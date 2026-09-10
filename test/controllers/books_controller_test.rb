@@ -186,6 +186,41 @@ class BooksControllerTest < ActionDispatch::IntegrationTest
     assert_equal 2, book_with_multiple_raters.judgements.count
   end
 
+  describe 'deleting query doc pairs below a position' do
+    let(:doug) { users(:doug) }
+
+    setup do
+      @unranked = james_bond_movies.query_doc_pairs.create!(query_text: 'Best Bond Ever',
+                                                            doc_id:     'DavidNiven',
+                                                            position:   nil)
+    end
+
+    test 'deletes pairs below the position along with the unranked ones' do
+      login_user_for_integration_test doug
+
+      delete "/books/#{james_bond_movies.id}/delete_query_doc_pairs_below_position",
+             params: { position: 3, include_unranked: 'true' }
+
+      follow_redirect!
+      assert_equal 'Deleted 4 query/doc pairs below position 3, including those without a position.', flash[:notice]
+
+      assert_equal [ 1, 1, 2, 3 ], james_bond_movies.query_doc_pairs.reload.pluck(:position).sort
+      assert_not QueryDocPair.exists?(@unranked.id)
+    end
+
+    test 'keeps the unranked pairs when they are not included' do
+      login_user_for_integration_test doug
+
+      delete "/books/#{james_bond_movies.id}/delete_query_doc_pairs_below_position",
+             params: { position: 3 }
+
+      follow_redirect!
+      assert_equal 'Deleted 3 query/doc pairs below position 3.', flash[:notice]
+
+      assert QueryDocPair.exists?(@unranked.id)
+    end
+  end
+
   describe 'remapping judgement ratings' do
     let(:doug) { users(:doug) }
 

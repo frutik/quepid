@@ -365,13 +365,22 @@ class BooksController < ApplicationController
 
   def delete_query_doc_pairs_below_position
     position = params[:position]
-    query_doc_pairs_to_delete = @book.query_doc_pairs.where('position > ?', position)
+    include_unranked = deserialize_bool_param(params[:include_unranked])
+
+    query_doc_pairs_to_delete = if include_unranked
+                                  @book.query_doc_pairs.includes(:judgements)
+                                    .where('position > ? OR position IS NULL', position)
+                                else
+                                  @book.query_doc_pairs.includes(:judgements).where('position > ?', position)
+                                end
     query_doc_pairs_count = query_doc_pairs_to_delete.count
     query_doc_pairs_to_delete.destroy_all
 
+    notice = "Deleted #{query_doc_pairs_count} query/doc pairs below position #{position}"
+    notice += include_unranked ? ', including those without a position.' : '.'
+
     UpdateCaseJob.perform_later @book
-    redirect_to book_path(@book),
-                :notice => "Deleted #{query_doc_pairs_count} query/doc pairs below position #{position}."
+    redirect_to book_path(@book), :notice => notice
   end
 
   def eric_steered_us_wrong

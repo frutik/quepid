@@ -99,11 +99,16 @@
 
 <p class="form-text">
   Did you populate your book too deeply?  Discover you'll never finish rating them?   Here you can delete query doc pairs below a certain rank (position).
+  Query doc pairs that never got a rank, typically because they were imported rather than fetched from a search engine, can be deleted at the same time.
 </p>
 <%= form_for(@book, url: delete_query_doc_pairs_below_position_book_path(@book), method: :delete, data: { confirm: "Are you sure?" }) do |form| %>
 <div class="mb-3">
   <%= form.label :position, class: 'form-label' %>
   <%= select_tag "position", options_for_select(@book.query_doc_pairs.distinct.pluck(:position).compact.sort), required: true, prompt: "Please select rank to delete below", class: 'form-control' %>
+</div>
+<div class="mb-3 form-check">
+  <%= check_box_tag "include_unranked", "true", true, class: 'form-check-input' %>
+  <%= label_tag "include_unranked", "Also delete the #{pluralize(@book.query_doc_pairs.where(position: nil).count, 'query doc pair')} without a rank", class: 'form-check-label' %>
 </div>
 <p>
 <div class="actions">
