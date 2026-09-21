@@ -30,6 +30,15 @@ module AiJudges
       end
     end
 
+    test 'still renders for a judge that has been removed from its team' do
+      ai_judge.teams.destroy_all
+
+      get edit_ai_judge_prompt_url(ai_judge_id: ai_judge.id)
+
+      assert_response :success
+      assert_select 'a', text: 'Edit Judge', count: 0
+    end
+
     describe 'patch update' do
       setup { register_default_openai_stubs }
 

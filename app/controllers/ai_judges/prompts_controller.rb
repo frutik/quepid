@@ -10,6 +10,7 @@ module AiJudges
 
     def edit
       @ai_judge = User.find(params.expect(:ai_judge_id))
+      @provider = LlmProviders[@ai_judge.judge_options[:llm_provider]]
 
       @query_doc_pair = if @book
                           @book.query_doc_pairs.sample
@@ -28,6 +29,7 @@ module AiJudges
     def update
       @ai_judge = User.find(params.expect(:ai_judge_id))
       @ai_judge.update(ai_judge_params)
+      @provider = LlmProviders[@ai_judge.judge_options[:llm_provider]]
 
       @query_doc_pair = QueryDocPair.new(query_doc_pair_params)
       # Form posts document_fields/options as JSON strings; .new doesn't run

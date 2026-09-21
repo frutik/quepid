@@ -13,22 +13,29 @@
 
   <%= hidden_field_tag :book_id, @book.id if @book%>
 
+  <% prompt_label = @provider&.prompt_label || 'System prompt' %>
   <div class="row gx-5">
     <div class="col-md-6">
-      <h2>Prompt Settings</h2>
+      <h2><%= prompt_label.titleize %></h2>
       <div>
         <div>
           <%= form.textarea :system_prompt, class: "form-control", rows: 20  %>
+          <% if @provider&.prompt_hint.present? %>
+            <div class="form-text"><%= @provider.prompt_hint %></div>
+          <% end %>
         </div>
         <div>
           <p/>
         </div>
         <div>
-          <%= form.submit 'Run Prompt', class: 'btn btn-primary' %>
+          <%= form.submit 'Run Judgement', class: 'btn btn-primary' %>
 
           <div class="d-grid gap-2 mt-2">
             <%= link_to 'Back', judgement_stats_book_path(@book), method: :get, class: 'btn btn-light' if @book %>
-            <%= link_to 'Edit Judge', edit_team_ai_judge_path(team_id: @ai_judge.teams.first.id, id: @ai_judge.id), method: :get, class: 'btn btn-light' %>
+            <%# a judge removed from its team has nowhere to be edited; the rest of this page still works %>
+            <% if (judge_team = @ai_judge.teams.first) %>
+              <%= link_to 'Edit Judge', edit_team_ai_judge_path(team_id: judge_team.id, id: @ai_judge.id), method: :get, class: 'btn btn-light' %>
+            <% end %>
           </div>
         </div>
       </div>
