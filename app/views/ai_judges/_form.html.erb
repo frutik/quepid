@@ -138,8 +138,69 @@
       field.disabled = false;
     });
 
+    // The two tabs are one set of values seen two ways, and only the visible one is
+    // submitted. Without syncing, editing a field and switching tabs shows the *stored*
+    // value instead of what you just typed -- and saving from there silently discards it.
+    // Anything in options that has no field of its own (or belongs to another provider)
+    // is carried through untouched.
+    let otherOptions = {};
+
+    function readStoredOptions() {
+      try {
+        const stored = JSON.parse(jsonField.value || '{}');
+        const { judge_options: _ignored, ...rest } = stored;
+        otherOptions = rest;
+      } catch (error) {
+        otherOptions = {};
+      }
+    }
+
+    function collectJudgeOptions() {
+      const collected = {};
+
+      document.querySelectorAll('#pills-structured-fields [id^="judge_options_"]').forEach(function(field) {
+        const optionRow = field.closest('.provider-option-field');
+        if (optionRow && optionRow.style.display === 'none') return;
+
+        collected[field.id.replace('judge_options_', '')] = field.value;
+      });
+
+      return collected;
+    }
+
+    function showFieldsAsJson() {
+      jsonField.value = JSON.stringify({ ...otherOptions, judge_options: collectJudgeOptions() }, null, 2);
+    }
+
+    function applyJsonToFields() {
+      let parsed;
+
+      try {
+        parsed = JSON.parse(jsonField.value);
+      } catch (error) {
+        return; // leave the fields alone rather than wiping them over a typo
+      }
+
+      const { judge_options: judgeOptions = {}, ...rest } = parsed;
+      otherOptions = rest;
+
+      Object.entries(judgeOptions).forEach(function([key, value]) {
+        const field = document.getElementById('judge_options_' + key);
+        if (field) field.value = value === null || value === undefined ? '' : value;
+      });
+
+      if (providerSelect && judgeOptions.llm_provider) {
+        providerSelect.value = judgeOptions.llm_provider;
+        updateProviderPanels(providerSelect.value);
+      }
+    }
+
+    readStoredOptions();
+
     // Handle tab changes
     structuredTab.addEventListener('click', function() {
+      applyJsonToFields();
+
       // Enable structured fields
       structuredFields.forEach(field => {
         field.disabled = false;
@@ -150,6 +211,8 @@
     });
 
     jsonTab.addEventListener('click', function() {
+      showFieldsAsJson();
+
       // Enable JSON field
       jsonField.disabled = false;
 

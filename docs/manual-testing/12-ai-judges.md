@@ -13,7 +13,7 @@ AI Judges let an LLM stand in for a human judge. An AI Judge is modeled as a spe
   2. Fill in Name and an **LLM Key** (required — help text notes it must be something, even a placeholder like "abc123").
   3. Choose an **LLM Provider** from the dropdown — try each option in turn: OpenAI, Azure OpenAI, Azure AI Foundry, Azure AI Foundry Serverless, Azure AI Foundry Anthropic, Anthropic, Google Gemini, Ollama. (TypeSafe Jev is listed too, but it is a "coming soon" placeholder — see 12.6.)
   4. For each, confirm the LLM Service URL / Model / API Version fields auto-fill with sensible presets and inline help text updates.
-  5. Toggle between the **Structured Fields** and **JSON** tabs for `judge_options` — confirm they're mutually exclusive (editing one disables the other, not just visually but functionally).
+  5. Toggle between the **Structured Fields** and **JSON** tabs for `judge_options` — confirm they're mutually exclusive (editing one disables the other, not just visually but functionally) **and that they agree**: change a field without saving, switch to JSON, and the edit should be there; edit the JSON, switch back, and the fields should show it. Malformed JSON leaves the fields untouched rather than wiping them.
   6. Review/edit the default **System Prompt** (a canned 0–3 relevance-grading prompt with worked examples).
   7. Save.
 - **Expected:** Redirects to the Team show page; the new AI judge appears in the members list with a robot indicator and an Edit link.
