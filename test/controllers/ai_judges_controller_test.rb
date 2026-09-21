@@ -38,6 +38,17 @@ class AiJudgesControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to team_url(id: team.id)
   end
 
+  test 'new offers the chat prompt, and ships every stock prompt for the switcher' do
+    get new_team_ai_judge_url(team_id: team.id)
+
+    assert_select 'textarea[name=?]', 'user[system_prompt]', text: /scale of 0 to 3/
+
+    stock = response.body[/const STOCK_SYSTEM_PROMPTS = (\[.*?\]);$/m, 1]
+
+    assert_not_nil stock, 'STOCK_SYSTEM_PROMPTS was not rendered into the form'
+    assert_equal LlmProviders.stock_system_prompts, JSON.parse(stock)
+  end
+
   test 'new renders the banner element placeholder providers would use' do
     get new_team_ai_judge_url(team_id: team.id)
 

@@ -11,6 +11,76 @@
 # rubocop:disable Metrics/ModuleLength -- a registry is long by nature; same reason
 # Metrics/ClassLength is off repo-wide.
 module LlmProviders
+  # What a chat-completions judge is told: the rating scale it should use, the
+  # JSON shape to answer in, and worked examples -- all of which a chat model
+  # needs because none of it is part of the request otherwise.
+  CHAT_SYSTEM_PROMPT = <<~TEXT
+    You are evaluating the results from a search engine. For each query, you will be provided with multiple documents. Your task is to evaluate each document and assign a judgment on a scale of 0 to 3, where:
+    - 0 indicates the document is irrelevant to the query.
+    - 1 indicates the document is somewhat relevant to the query.
+    - 2 indicates the document is mostly relevant to the query.
+    - 3 indicates the document is perfectly relevant to the query.
+
+    For each document, provide:
+    1. An explanation of the judgment.
+    2. The judgment value.
+
+    The response should be in the following JSON format:
+    {
+      "explanation": "Your detailed reasoning behind the judgment",
+      "judgment": <numeric value>
+    }
+
+    Here is an example:
+    User:
+    Query: Farm animals
+
+    doc1:
+      title: All about farm animals
+      abstract: This document is all about farm animals
+    Assistant:
+    {
+      "explanation": "This document appears to perfectly respond to the user's query",
+      "judgment": 3
+    }
+
+    User:
+    Query: Farm animals
+
+    doc2:
+      title: Somewhat about farm animals
+      abstract: This document somewhat talks about farm animals
+    Assistant:
+    {
+      "explanation": "This document is somewhat relevant to the user's query",
+      "judgment": 1
+    }
+
+    User:
+    Query: Farm animals
+
+    doc3:
+      title: This document has nothing to do with farm animals
+      abstract: We will talk about everything except for farm animals.
+    Assistant:
+    {
+      "explanation": "This document is not relevant at all to the user's query",
+      "judgment": 0
+    }
+  TEXT
+
+  # Jev needs almost none of that. The scale, its labels and the answer's shape
+  # are carried by the request itself, so instructions that repeat them only
+  # contradict the book (the stock prompt hardcodes 0-3) and spend tokens. What
+  # is left worth saying is what to weigh.
+  JEV_SYSTEM_PROMPT = <<~TEXT
+    Judge how well the document satisfies the user's query and, when one is given, the stated information need.
+
+    Weigh what the document is actually about and how specific it is to the query -- not its length, style or formatting. A document that merely mentions the query's words without addressing it is not relevant.
+
+    The rating scale and the meaning of each rating come from the book and are sent with this request; rate against those, and say nothing about output format.
+  TEXT
+
   class << self
     def all
       [
@@ -43,6 +113,17 @@ module LlmProviders
 
     def presets
       all.index_by(&:key).transform_values(&:to_preset)
+    end
+
+    # Every prompt the app ships. The AI Judge form uses this to tell a prompt
+    # nobody has touched from one somebody wrote, so switching provider can
+    # offer the right default without ever clobbering real work.
+    def stock_system_prompts
+      all.filter_map(&:default_system_prompt).uniq
+    end
+
+    def stock_system_prompts_json
+      stock_system_prompts.to_json
     end
 
     # Safe to interpolate into a <script> tag: ActiveSupport escapes HTML entities
@@ -173,28 +254,34 @@ module LlmProviders
     # AiJudgesController refuses to save a judge pointed at it until the adapter lands.
     def typesafe_jev
       LlmProvider.new(
-        key:                 'typesafe_jev',
-        adapter:             'LlmJudgeAdapters::Jev',
-        label:               'TypeSafe Jev',
-        default_service_url: 'https://api.typesafe.ai',
-        default_model:       'jev-latest',
-        read_only_fields:    %w[llm_service_url llm_model llm_api_version],
-        help_html:           '<strong>TypeSafe Jev</strong> &mdash; A typed evaluation model rather than a ' \
-                             'chat model: it answers with a rating, a probability distribution and a ' \
-                             'confidence, and cannot return a rating outside your scale.<br>' \
-                             '<b>URL:</b> <code>https://api.typesafe.ai</code> (fixed)<br>' \
-                             '<b>Model:</b> <code>jev-latest</code> (fixed)<br>' \
-                             '<b>Key:</b> Your TypeSafe API key from ' \
-                             '<a href="https://console.typesafe.ai/keys" target="_blank" rel="noopener">' \
-                             'console.typesafe.ai/keys</a><br>' \
-                             '<b>API Version:</b> Not used<br>' \
-                             'The book\'s rating scale and labels become the judging criteria, so a Jev ' \
-                             'judge must be run from a book, and its system prompt only says what to weigh ' \
-                             '&mdash; not the scale or an output format. It writes no prose, so the ' \
-                             'explanation Quepid stores is built from the score, confidence and ' \
-                             'distribution. Text only &mdash; document images are ignored. Optional: add ' \
-                             '<code>jev_min_confidence</code> (e.g. <code>0.4</code>) on the JSON tab to ' \
-                             'mark answers below that confidence unrateable.'
+        key:                   'typesafe_jev',
+        adapter:               'LlmJudgeAdapters::Jev',
+        default_system_prompt: JEV_SYSTEM_PROMPT,
+        prompt_label:          'Judging instructions',
+        prompt_hint:           'Jev has no system prompt: this text is sent as the instructions on the ' \
+                               'question it is asked. Say what to weigh -- the rating scale, its labels ' \
+                               'and the shape of the answer are part of the request already.',
+        label:                 'TypeSafe Jev',
+        default_service_url:   'https://api.typesafe.ai',
+        default_model:         'jev-latest',
+        read_only_fields:      %w[llm_service_url llm_model llm_api_version],
+        help_html:             '<strong>TypeSafe Jev</strong> &mdash; A typed evaluation model rather than a ' \
+                               'chat model: it answers with a rating, a probability distribution and a ' \
+                               'confidence, and cannot return a rating outside your scale.<br>' \
+                               '<b>URL:</b> <code>https://api.typesafe.ai</code> (fixed)<br>' \
+                               '<b>Model:</b> <code>jev-latest</code> (fixed)<br>' \
+                               '<b>Key:</b> Your TypeSafe API key from ' \
+                               '<a href="https://console.typesafe.ai/keys" target="_blank" rel="noopener">' \
+                               'console.typesafe.ai/keys</a><br>' \
+                               '<b>API Version:</b> Not used<br>' \
+                               'The book\'s rating scale and labels become the question\'s criteria, so a Jev ' \
+                               'judge must be run from a book, and the text below is sent as that ' \
+                               'question\'s instructions &mdash; not as a system prompt. It writes no ' \
+                               'prose, so the ' \
+                               'explanation Quepid stores is built from the score, confidence and ' \
+                               'distribution. Text only &mdash; document images are ignored. Optional: add ' \
+                               '<code>jev_min_confidence</code> (e.g. <code>0.4</code>) on the JSON tab to ' \
+                               'mark answers below that confidence unrateable.'
       )
     end
 

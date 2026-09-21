@@ -7,7 +7,8 @@
 # app knows about that provider is looked up here -- see LlmProviders.
 class LlmProvider
   attr_reader :key, :label, :default_service_url, :default_api_version, :default_model,
-              :help_html, :notice_html, :read_only_fields, :adapter, :auth_style
+              :help_html, :notice_html, :read_only_fields, :adapter, :auth_style,
+              :default_system_prompt, :prompt_label, :prompt_hint
 
   # @param key [String] value stored in judge_options[:llm_provider]
   # @param label [String] shown in the AI Judge form's provider dropdown
@@ -22,10 +23,18 @@ class LlmProvider
   # @param adapter [String, nil] name of the LlmJudgeAdapters class that speaks this
   #   vendor's dialect; nil for a provider with no adapter yet
   # @param auth_style [Symbol] how the API key is sent: :bearer, :api_key or :x_api_key
+  # @param default_system_prompt [String] what a new judge on this provider is told, and
+  #   what the form offers when switching to it -- a chat model needs the scale and an
+  #   output format spelled out, a typed model does not
+  # @param prompt_label [String] what the form calls that text for this provider; it is a
+  #   system prompt to a chat model, but instructions on a question to a typed one
+  # @param prompt_hint [String, nil] one line under the field explaining what belongs in it
   # rubocop:disable-next Metrics/ParameterLists -- keyword arguments, all of them required data
   def initialize(key:, label:, default_service_url:, default_model:, help_html:,
                  default_api_version: '', notice_html: nil, read_only_fields: [],
-                 adapter: 'LlmJudgeAdapters::OpenAi', auth_style: :bearer)
+                 adapter: 'LlmJudgeAdapters::OpenAi', auth_style: :bearer,
+                 default_system_prompt: LlmProviders::CHAT_SYSTEM_PROMPT,
+                 prompt_label: 'System prompt', prompt_hint: nil)
     @key = key.to_s
     @label = label
     @default_service_url = default_service_url
@@ -36,6 +45,9 @@ class LlmProvider
     @read_only_fields = read_only_fields.map(&:to_s).freeze
     @adapter = adapter
     @auth_style = auth_style
+    @default_system_prompt = default_system_prompt
+    @prompt_label = prompt_label
+    @prompt_hint = prompt_hint
 
     freeze
   end
@@ -55,6 +67,9 @@ class LlmProvider
       help:            help_html,
       notice:          notice_html,
       read_only:       read_only_fields,
+      system_prompt:   default_system_prompt,
+      prompt_label:    prompt_label,
+      prompt_hint:     prompt_hint,
     }
   end
 

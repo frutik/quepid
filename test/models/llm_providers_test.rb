@@ -72,7 +72,8 @@ class LlmProvidersTest < ActiveSupport::TestCase
   test 'presets carry the keys the form javascript reads' do
     preset = LlmProviders.presets.fetch('openai')
 
-    assert_equal [ :llm_service_url, :llm_api_version, :llm_model, :help, :notice, :read_only ],
+    assert_equal [ :llm_service_url, :llm_api_version, :llm_model, :help, :notice, :read_only,
+                   :system_prompt, :prompt_label, :prompt_hint ],
                  preset.keys
     assert_equal 'https://api.openai.com', preset[:llm_service_url]
   end
@@ -142,6 +143,42 @@ class LlmProvidersTest < ActiveSupport::TestCase
 
     assert_predicate placeholder, :coming_soon?
     assert_equal 'Not yet', placeholder.to_preset[:notice]
+  end
+
+  test 'a chat provider ships the prompt that spells out the scale and the answer format' do
+    prompt = LlmProviders['openai'].default_system_prompt
+
+    assert_equal LlmProviders::CHAT_SYSTEM_PROMPT, prompt
+    assert_includes prompt, 'scale of 0 to 3'
+    assert_includes prompt, 'JSON format'
+    assert_equal prompt, AiJudgesController::DEFAULT_SYSTEM_PROMPT, 'the old constant still resolves'
+  end
+
+  test 'jev ships a prompt that says what to weigh and nothing the request already carries' do
+    prompt = LlmProviders['typesafe_jev'].default_system_prompt
+
+    assert_equal LlmProviders::JEV_SYSTEM_PROMPT, prompt
+    assert_no_match(/0 to 3/, prompt, 'the scale comes from the book, not the prompt')
+    assert_no_match(/JSON/, prompt, 'a typed model cannot be instructed into another shape')
+    assert_match(/satisfies the user's query/, prompt)
+  end
+
+  test 'the field is called what it actually is for each provider' do
+    assert_equal 'System prompt', LlmProviders['openai'].prompt_label
+    assert_nil LlmProviders['openai'].prompt_hint
+
+    jev = LlmProviders['typesafe_jev']
+
+    assert_equal 'Judging instructions', jev.prompt_label
+    assert_includes jev.prompt_hint, 'no system prompt'
+    assert_includes jev.prompt_hint, 'instructions on the question'
+  end
+
+  test 'the stock prompts are what the form treats as untouched' do
+    assert_includes LlmProviders.stock_system_prompts, LlmProviders::CHAT_SYSTEM_PROMPT
+    assert_includes LlmProviders.stock_system_prompts, LlmProviders::JEV_SYSTEM_PROMPT
+    assert_equal LlmProviders.stock_system_prompts, LlmProviders.stock_system_prompts.uniq
+    assert_equal LlmProviders.stock_system_prompts, JSON.parse(LlmProviders.stock_system_prompts_json)
   end
 
   test 'jev fixes the endpoint and model it dictates, and says where a key comes from' do
