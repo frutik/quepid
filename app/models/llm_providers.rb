@@ -81,6 +81,23 @@ module LlmProviders
     The rating scale and the meaning of each rating come from the book and are sent with this request; rate against those, and say nothing about output format.
   TEXT
 
+  # Long enough to crowd the registry entry it belongs to.
+  JEV_HELP_HTML = '<strong>TypeSafe Jev</strong> &mdash; A typed evaluation model rather than a ' \
+                  'chat model: it answers with a rating, a probability distribution and a ' \
+                  'confidence, and cannot return a rating outside your scale.<br>' \
+                  '<b>URL:</b> <code>https://api.typesafe.ai</code> (fixed)<br>' \
+                  '<b>Model:</b> <code>jev-latest</code> (fixed)<br>' \
+                  '<b>Key:</b> Your TypeSafe API key from ' \
+                  '<a href="https://console.typesafe.ai/keys" target="_blank" rel="noopener">' \
+                  'console.typesafe.ai/keys</a><br>' \
+                  '<b>API Version:</b> Not used<br>' \
+                  'The book\'s rating scale and labels become the question\'s criteria, so a Jev ' \
+                  'judge must be run from a book, and the text below is sent as that ' \
+                  'question\'s instructions &mdash; not as a system prompt. It writes no ' \
+                  'prose, so the ' \
+                  'explanation Quepid stores is built from the score, confidence and ' \
+                  'distribution. Text only &mdash; document images are ignored.'
+
   class << self
     def all
       [
@@ -255,6 +272,19 @@ module LlmProviders
     def typesafe_jev
       LlmProvider.new(
         key:                   'typesafe_jev',
+        scale_as_criteria:     true,
+        option_fields:         {
+          'jev_min_confidence' => {
+            label: 'Minimum confidence',
+            type:  :number,
+            min:   0,
+            max:   1,
+            step:  0.05,
+            hint:  'Optional, 0 to 1. Jev reports how concentrated its answer is; below this ' \
+                   'the judgement is marked unrateable instead of rated, with the numbers kept ' \
+                   'in the explanation. Leave blank to accept every answer.',
+          },
+        },
         adapter:               'LlmJudgeAdapters::Jev',
         default_system_prompt: JEV_SYSTEM_PROMPT,
         prompt_label:          'Judging instructions',
@@ -265,23 +295,7 @@ module LlmProviders
         default_service_url:   'https://api.typesafe.ai',
         default_model:         'jev-latest',
         read_only_fields:      %w[llm_service_url llm_model llm_api_version],
-        help_html:             '<strong>TypeSafe Jev</strong> &mdash; A typed evaluation model rather than a ' \
-                               'chat model: it answers with a rating, a probability distribution and a ' \
-                               'confidence, and cannot return a rating outside your scale.<br>' \
-                               '<b>URL:</b> <code>https://api.typesafe.ai</code> (fixed)<br>' \
-                               '<b>Model:</b> <code>jev-latest</code> (fixed)<br>' \
-                               '<b>Key:</b> Your TypeSafe API key from ' \
-                               '<a href="https://console.typesafe.ai/keys" target="_blank" rel="noopener">' \
-                               'console.typesafe.ai/keys</a><br>' \
-                               '<b>API Version:</b> Not used<br>' \
-                               'The book\'s rating scale and labels become the question\'s criteria, so a Jev ' \
-                               'judge must be run from a book, and the text below is sent as that ' \
-                               'question\'s instructions &mdash; not as a system prompt. It writes no ' \
-                               'prose, so the ' \
-                               'explanation Quepid stores is built from the score, confidence and ' \
-                               'distribution. Text only &mdash; document images are ignored. Optional: add ' \
-                               '<code>jev_min_confidence</code> (e.g. <code>0.4</code>) on the JSON tab to ' \
-                               'mark answers below that confidence unrateable.'
+        help_html:             JEV_HELP_HTML
       )
     end
 

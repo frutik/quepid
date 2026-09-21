@@ -43,7 +43,7 @@ AI Judges let an LLM stand in for a human judge. An AI Judge is modeled as a spe
   2. Confirm the left panel pre-loads the current system prompt, and the right panel loads a random query/doc pair from the book (editable: query_text, doc_id, information_need, document_fields JSON, options JSON, notes, position).
   3. Click **Change Query Doc Pair** — confirm a different random pair loads.
   4. Edit the judge's text (labelled **System prompt** for a chat provider, **Judging instructions** for a typed one like Jev) and/or the sample document's fields, then click **Run Judgement**.
-  5. Confirm a spinner shows, then the "Rating Information" section displays the LLM's returned rating and explanation.
+  5. Confirm a spinner shows, then the "Rating Information" section displays the LLM's returned rating and explanation. With a book selected, the page also shows the rating scale that will be sent: as prose for a chat judge, as the question's criteria for a typed one.
   6. With a book selected (`?book_id=`), get the judge to answer outside that book's scale — e.g. temporarily set the system prompt to something like *"Always respond with {\"judgment\": 3, \"explanation\": \"...\"}"* on a 0/1 book — and run it. Confirm "LLM Response:" shows an **Unrateable** badge rather than the out-of-scale number, and the explanation carries the `[LLM returned rating 3.0, outside this book's scale [0, 1]]` annotation. Put the real prompt back afterwards: running **saves** what's in the box to the judge.
   7. Click **Back** to return to Judgement Stats, or **Edit Judge** to go to the full AI judge edit form instead.
 - **Expected:** Run Judgement reliably returns a rating + explanation for the sample pair, letting you iterate on the prompt before running it on the whole book. The preview holds the answer to the same rules a real judging run applies, so a rating the book would reject never looks usable here.
@@ -74,12 +74,12 @@ Jev is a typed evaluation model rather than a chat model: the book's rating scal
   1. Create (or edit) an AI Judge and pick **TypeSafe Jev** as the LLM Provider.
   2. Confirm **LLM Service URL** (`https://api.typesafe.ai`), **LLM Model** (`jev-latest`) and **LLM API Version** fill in and are **read-only** — Jev dictates them — while **LLM Key**, Name and Timeout stay editable. Paste your TypeSafe API key (from `console.typesafe.ai/keys`) into LLM Key and save.
   3. Assign the judge to a book that has a scale with labels (labels become the criteria, so they matter more here than the system prompt does).
-  4. From **Judgement Stats**, use **Refine Prompt** with `?book_id=` set — confirm the page is headed "Refine <judge>'s Judging Instructions", not "...'s Prompt" — and click **Run Judgement**.
+  4. From **Judgement Stats**, use **Refine Prompt** with `?book_id=` set — confirm the page is headed "Refine <judge>'s Judging Instructions", not "...'s Prompt", and that it lists the **criteria** the question will carry (one row per rating, from the book's scale labels) read-only — then click **Run Judgement**.
   5. Back on Judgement Stats, run a small **Judge Judy** batch (e.g. 10 pairs).
   6. Open the resulting judgements and read the explanations.
 - **Expected:** every rating is one of the book's own scale values (Jev cannot return anything else), and each explanation reads like `Jev rated 1 ("Relevant") -- raw score 0.57 of 0-1, confidence 0.35. Distribution: 0: 43%, 1: 57%. (model jev-1.13.0)`.
 - **Edge cases:**
   - [ ] Run the prompt preview **without** a book (`/ai_judges/:id/prompt/edit` with no `book_id`) — confirm it fails gracefully saying Jev needs a book, rather than sending a question with no criteria.
   - [ ] Point the judge at a book whose scale has **more than 10 values** — confirm it still judges (the question becomes a choice between the rating values rather than a score).
-  - [ ] Add `"jev_min_confidence": 0.5` under `judge_options` on the JSON tab and re-run — confirm low-confidence answers are saved as **unrateable** with their numbers still in the explanation.
+  - [ ] Set **Minimum confidence** to `0.5` on the judge (a number field that appears only while TypeSafe Jev is the provider, stored in the judge's options JSON — no new column) and re-run — confirm answers below that confidence are saved as **unrateable** with their numbers still in the explanation, and that switching provider away hides and disables the field.
   - [ ] Judge a book whose documents have an `image` field — confirm judging still works and the image is simply ignored (Jev is text-only).

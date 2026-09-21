@@ -49,6 +49,29 @@ class AiJudgesControllerTest < ActionDispatch::IntegrationTest
     assert_equal LlmProviders.stock_system_prompts, JSON.parse(stock)
   end
 
+  test 'new offers a provider own option as a field, inert until that provider is chosen' do
+    get new_team_ai_judge_url(team_id: team.id)
+
+    assert_select '.provider-option-field[data-provider=?]', 'typesafe_jev' do
+      assert_select 'input#judge_options_jev_min_confidence[type=number][min=?][max=?]', '0', '1'
+    end
+  end
+
+  test 'a provider own option is stored in the judge options json, with no new column' do
+    post team_ai_judges_url(team_id: team.id),
+         params: { user: {
+           name:          'Picky Jev',
+           llm_key:       'abc123',
+           system_prompt: 'Judge this',
+           judge_options: { llm_provider: 'typesafe_jev', jev_min_confidence: '0.4' },
+         } }
+
+    judge = User.order(:id).last
+
+    assert_equal '0.4', judge.judge_options[:jev_min_confidence]
+    assert_equal '0.4', judge.options.dig('judge_options', 'jev_min_confidence')
+  end
+
   test 'new renders the banner element placeholder providers would use' do
     get new_team_ai_judge_url(team_id: team.id)
 

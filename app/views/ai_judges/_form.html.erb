@@ -65,6 +65,31 @@
             </div>
           </div>
         <% end %>
+        <%# Options only one provider understands. Rendered for every provider and shown
+            with the one that owns them, so nobody has to hand-edit the JSON tab to reach
+            a setting the UI knows about. %>
+        <% rendered_keys = @ai_judge.judge_options.keys.map(&:to_s) %>
+        <% LlmProviders.each do |provider| %>
+          <% provider.option_fields.each do |key, field| %>
+            <% next if rendered_keys.include?(key) %>
+            <div class="row mb-3 provider-option-field" data-provider="<%= provider.key %>" style="display:none;">
+              <%= label_tag "judge_options[#{key}]", field[:label], class: 'col-sm-2 col-form-label' %>
+              <div class="col-sm-4">
+                <% if :number == field[:type] %>
+                  <%= number_field_tag "user[judge_options][#{key}]", nil,
+                        id: "judge_options_#{key}", min: field[:min], max: field[:max], step: field[:step],
+                        class: 'form-control form-control-sm structured-field' %>
+                <% else %>
+                  <%= text_field_tag "user[judge_options][#{key}]", nil,
+                        id: "judge_options_#{key}",
+                        class: 'form-control form-control-sm structured-field' %>
+                <% end %>
+                <div class="form-text"><%= field[:hint] %></div>
+              </div>
+            </div>
+          <% end %>
+        <% end %>
+
         <div id="provider-notice" class="alert alert-warning mt-3 mb-0 small" style="display:none;">
         </div>
         <div id="provider-help" class="alert alert-info mt-3 mb-0 small" style="display:none;">
@@ -182,8 +207,10 @@
       const field = document.querySelector('textarea[name="user[system_prompt]"]');
       if (!field || !preset.system_prompt) return;
 
-      const current = field.value.trim();
-      const untouched = current === '' || STOCK_SYSTEM_PROMPTS.some(p => p.trim() === current);
+      // A textarea gives back CRLF where the stored text had LF, so compare normalized.
+      const normalize = text => text.replace(/\r\n?/g, '\n').trim();
+      const current = normalize(field.value);
+      const untouched = current === '' || STOCK_SYSTEM_PROMPTS.some(p => normalize(p) === current);
       if (!untouched) return;
 
       field.value = preset.system_prompt;
@@ -203,10 +230,11 @@
       // An existing judge switched to another dialect keeps text written for the
       // old one, which is worse than useless: the stock chat prompt dictates a
       // 0-3 scale this book may not use, and an output format Jev cannot follow.
-      const current = field ? field.value.trim() : '';
+      const normalize = text => text.replace(/\r\n?/g, '\n').trim();
+      const current = field ? normalize(field.value) : '';
       const foreign = preset && preset.system_prompt &&
-        STOCK_SYSTEM_PROMPTS.some(p => p.trim() === current) &&
-        preset.system_prompt.trim() !== current;
+        STOCK_SYSTEM_PROMPTS.some(p => normalize(p) === current) &&
+        normalize(preset.system_prompt) !== current;
 
       if (foreign) {
         const name = providerSelect.options[providerSelect.selectedIndex].text;
@@ -239,6 +267,18 @@
       panel(providerHelp, preset && preset.help);
       applyReadOnlyFields(preset);
       describePromptField(preset);
+      showProviderOptionFields(provider);
+    }
+
+    // A field only one provider understands is disabled while another is selected, so
+    // switching away never posts a setting the chosen provider has no idea about.
+    function showProviderOptionFields(provider) {
+      document.querySelectorAll('.provider-option-field').forEach(function(row) {
+        const mine = row.dataset.provider === provider;
+
+        row.style.display = mine ? '' : 'none';
+        row.querySelectorAll('input').forEach(input => { input.disabled = !mine; });
+      });
     }
 
     if (providerSelect) {

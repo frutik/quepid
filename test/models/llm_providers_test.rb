@@ -163,6 +163,17 @@ class LlmProvidersTest < ActiveSupport::TestCase
     assert_match(/satisfies the user's query/, prompt)
   end
 
+  test 'jev offers its confidence floor as a field, not as JSON to hand-edit' do
+    field = LlmProviders['typesafe_jev'].option_fields['jev_min_confidence']
+
+    assert_equal 'Minimum confidence', field[:label]
+    assert_equal :number, field[:type]
+    assert_equal [ 0, 1 ], [ field[:min], field[:max] ]
+    assert_includes field[:hint], 'unrateable'
+    assert_empty LlmProviders['openai'].option_fields
+    assert_no_match(/JSON tab/, LlmProviders['typesafe_jev'].help_html)
+  end
+
   test 'the field is called what it actually is for each provider' do
     assert_equal 'System prompt', LlmProviders['openai'].prompt_label
     assert_nil LlmProviders['openai'].prompt_hint
@@ -187,6 +198,5 @@ class LlmProvidersTest < ActiveSupport::TestCase
     assert_equal %w[llm_service_url llm_model llm_api_version], jev.read_only_fields
     assert_equal jev.read_only_fields, jev.to_preset[:read_only]
     assert_includes jev.help_html, 'https://console.typesafe.ai/keys'
-    assert_includes jev.help_html, 'jev_min_confidence'
   end
 end
