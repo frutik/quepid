@@ -53,7 +53,7 @@ class AiJudgesControllerTest < ActionDispatch::IntegrationTest
     get new_team_ai_judge_url(team_id: team.id)
 
     assert_select '.provider-option-field[data-provider=?]', 'typesafe_jev' do
-      assert_select 'input#judge_options_jev_min_confidence[type=number][min=?][max=?]', '0', '1'
+      assert_select 'input#judge_options_jev_min_confidence[type=number][min=?][max=?][step=?]', '0', '1', '0.1'
     end
   end
 

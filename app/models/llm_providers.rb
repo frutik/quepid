@@ -132,6 +132,15 @@ module LlmProviders
       all.index_by(&:key).transform_values(&:to_preset)
     end
 
+    # Every option a provider declares, keyed by option name, each carrying the provider
+    # that owns it -- so the form can render a declared widget whether or not the judge
+    # has that option saved yet.
+    def option_field_specs
+      all.each_with_object({}) do |provider, specs|
+        provider.option_fields.each { |key, field| specs[key.to_s] = field.merge(provider: provider.key) }
+      end
+    end
+
     # Every prompt the app ships. The AI Judge form uses this to tell a prompt
     # nobody has touched from one somebody wrote, so switching provider can
     # offer the right default without ever clobbering real work.
@@ -279,7 +288,7 @@ module LlmProviders
             type:  :number,
             min:   0,
             max:   1,
-            step:  0.05,
+            step:  0.1,
             hint:  'Optional, 0 to 1. Jev reports how concentrated its answer is; below this ' \
                    'the judgement is marked unrateable instead of rated, with the numbers kept ' \
                    'in the explanation. Leave blank to accept every answer.',

@@ -167,8 +167,9 @@ class LlmProvidersTest < ActiveSupport::TestCase
     field = LlmProviders['typesafe_jev'].option_fields['jev_min_confidence']
 
     assert_equal 'Minimum confidence', field[:label]
-    assert_equal :number, field[:type]
+    assert_equal :number, field[:type], 'a spinner, not a text box to type a float into'
     assert_equal [ 0, 1 ], [ field[:min], field[:max] ]
+    assert_in_delta(0.1, field[:step])
     assert_includes field[:hint], 'unrateable'
     assert_empty LlmProviders['openai'].option_fields
     assert_no_match(/JSON tab/, LlmProviders['typesafe_jev'].help_html)
