@@ -72,10 +72,13 @@ module LlmJudgeAdapters
         assert_match(/no scale configured/, error.message)
       end
 
-      test 'a request with no book at all says so plainly' do
-        error = assert_raises(RuntimeError) { adapter.envelope([], 'Judge relevance.') }
+      test 'a request with no book at all says so plainly, rather than blaming the scale' do
+        from_prompts = assert_raises(RuntimeError) { adapter.envelope([], 'Judge relevance.') }
+        from_pair = assert_raises(RuntimeError) { envelope(book: nil) }
 
-        assert_match(/needs a book/, error.message)
+        assert_match(/needs a book/, from_prompts.message)
+        assert_match(/needs a book/, from_pair.message)
+        assert_no_match(/no scale configured/, from_pair.message)
       end
 
       test 'an oversized document field is capped rather than left to 422' do

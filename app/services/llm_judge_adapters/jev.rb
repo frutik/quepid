@@ -24,6 +24,9 @@ module LlmJudgeAdapters
     MAX_STATE_CHARS = 80_000
     TRUNCATION_MARKER = ' ...[truncated]'
 
+    NO_BOOK_MESSAGE = 'Jev judges against a book\'s rating scale, so it needs a book -- open the prompt ' \
+                      'preview with a book (?book_id=...) or run the judge from a book.'
+
     def path
       'v1/systemone'
     end
@@ -43,12 +46,11 @@ module LlmJudgeAdapters
       }
     end
 
-    # The prompt-preview path builds a request from a loose prompt pair with no
-    # book attached. Nothing sensible can be asked of Jev that way, so say so
+    # The prompt-preview path can build a request from a loose prompt pair with
+    # no book attached. Nothing sensible can be asked of Jev that way, so say so
     # instead of sending a question with no criteria.
     def envelope _user_prompt, _system_prompt
-      raise 'Jev judges against a book\'s rating scale, so it needs a book -- open the prompt preview ' \
-            'with a book (?book_id=...) or run the judge from a book.'
+      raise NO_BOOK_MESSAGE
     end
 
     # Jev accepts text only -- a string, a JSON object, or an array of text
@@ -85,6 +87,8 @@ module LlmJudgeAdapters
     private
 
     def question system_prompt, book
+      raise NO_BOOK_MESSAGE if book.nil?
+
       scale = JudgeScale.for(book)
 
       raise 'Jev judges against the book\'s rating scale, but this book has no scale configured' if scale.empty?
