@@ -2,6 +2,10 @@
 
 > **Status:** plan only, nothing implemented. Builds directly on the provider adapters and
 > `JudgementFinalizer` from `docs/adr/0001-llm-judge-provider-architecture.md`.
+>
+> **Read `docs/todo/judgements-escalation.md` alongside this.** It is the risk register, and it
+> argues against this plan's D5 (inline escalation) in favour of a two-pass version. Settle that
+> before S4.
 
 ## 1. The scenario
 
