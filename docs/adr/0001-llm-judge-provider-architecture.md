@@ -311,13 +311,13 @@ so a placeholder can never reach a judging run.
 *Why before B1:* teams can see what Jev will need and get a key ready while the adapter is built.
 It generalises — any future provider can be listed this way before its adapter exists.
 
-**B1 · The Jev adapter, unreachable**
+**B1 · The Jev adapter, unreachable** *(landed)*
 `LlmJudgeAdapters::Jev` + its tests (scale→criteria, snapping, non-zero-based scales, >10-level
 choice fallback, empty scale, confidence gate, state truncation, text-only handling of an image
 field, 401/422/529). **Not** added to the registry, so no code path reaches it.
 *Deployable because* it is dead code in production until B2. *Rollback:* delete one file.
 
-**B2 · Turn the placeholder into a working provider** *(the behaviour change: it becomes usable)*
+**B2 · Turn the placeholder into a working provider** *(landed — it becomes usable)*
 Drop `notice_html` (which clears `coming_soon?` and the save guard) and complete the entry — label, `https://api.typesafe.ai`, `jev-latest`, Bearer auth, `images? false`,
 `batch? false`, Jev-specific default instructions, help text (scale drives criteria; no image
 support; optional confidence gate). The preset installs its default instructions **only** over a

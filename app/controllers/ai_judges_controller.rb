@@ -4,60 +4,10 @@ class AiJudgesController < ApplicationController
   before_action :set_team
   before_action :set_ai_judge, only: [ :show, :edit, :update, :destroy ]
 
-  DEFAULT_SYSTEM_PROMPT = <<~TEXT
-    You are evaluating the results from a search engine. For each query, you will be provided with multiple documents. Your task is to evaluate each document and assign a judgment on a scale of 0 to 3, where:
-    - 0 indicates the document is irrelevant to the query.
-    - 1 indicates the document is somewhat relevant to the query.
-    - 2 indicates the document is mostly relevant to the query.
-    - 3 indicates the document is perfectly relevant to the query.
-
-    For each document, provide:
-    1. An explanation of the judgment.
-    2. The judgment value.
-
-    The response should be in the following JSON format:
-    {
-      "explanation": "Your detailed reasoning behind the judgment",
-      "judgment": <numeric value>
-    }
-
-    Here is an example:
-    User:
-    Query: Farm animals
-
-    doc1:
-      title: All about farm animals
-      abstract: This document is all about farm animals
-    Assistant:
-    {
-      "explanation": "This document appears to perfectly respond to the user's query",
-      "judgment": 3
-    }
-
-    User:
-    Query: Farm animals
-
-    doc2:
-      title: Somewhat about farm animals
-      abstract: This document somewhat talks about farm animals
-    Assistant:
-    {
-      "explanation": "This document is somewhat relevant to the user's query",
-      "judgment": 1
-    }
-
-    User:
-    Query: Farm animals
-
-    doc3:
-      title: This document has nothing to do with farm animals
-      abstract: We will talk about everything except for farm animals.
-    Assistant:
-    {
-      "explanation": "This document is not relevant at all to the user's query",
-      "judgment": 0
-    }
-  TEXT
+  # Kept as a constant because tests and other callers refer to it; the text
+  # itself now lives with the providers that use it (LlmProviders), since what
+  # a judge should be told depends on the dialect it speaks.
+  DEFAULT_SYSTEM_PROMPT = LlmProviders::CHAT_SYSTEM_PROMPT
 
   def show
     render 'edit'
@@ -65,7 +15,7 @@ class AiJudgesController < ApplicationController
 
   def new
     @ai_judge = User.new
-    @ai_judge.system_prompt = DEFAULT_SYSTEM_PROMPT
+    @ai_judge.system_prompt = LlmProviders['openai'].default_system_prompt
     @ai_judge.judge_options = {
       llm_provider:    'openai',
       llm_service_url: 'https://api.openai.com',

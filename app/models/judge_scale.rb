@@ -49,6 +49,30 @@ class JudgeScale
     end.join(', ')
   end
 
+  # The scale as an ordered list of level descriptions, low to high -- what a
+  # model that is handed the scale itself (rather than told about it in prose)
+  # is asked to rate against. Values with no label still need describing, so
+  # they fall back to naming the number.
+  def criteria
+    values.map { |value| label_for(value) || "Rating #{value} on this book's scale" }
+  end
+
+  # Same thing keyed by the rating, for a model that picks an option rather
+  # than a position on a spectrum.
+  def criteria_by_value
+    values.index_by(&:to_s).transform_values { |value| label_for(value) || "Rating #{value} on this book's scale" }
+  end
+
+  # Turns a position on the level spectrum (0 .. size - 1, possibly fractional,
+  # as a probability-weighted model answers) into one of this book's actual
+  # rating values. Rounds to the nearest level and clamps to the ends, because
+  # a rating between two scale points is not a rating a human judge could give.
+  def value_for_level level
+    return nil if empty? || level.nil?
+
+    values[level.to_f.round.clamp(0, size - 1)]
+  end
+
   # Is this a rating a human judge could also have given? Ratings arrive as
   # floats (judgements.rating is a float column) while the scale is integers,
   # so both sides are compared as floats -- exactly, with no tolerance: a value

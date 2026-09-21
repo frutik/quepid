@@ -45,22 +45,38 @@
     <div class="tab-content" id="pills-tabContent">
       <div class="tab-pane fade show active" id="pills-structured-fields" role="tabpanel" aria-labelledby="pills-structured-fields-tab" tabindex="0">
 
-        <% sorted_judge_options = @ai_judge.judge_options.sort_by { |k, _| k.to_s == 'llm_provider' ? 0 : 1 } %>
-        <% sorted_judge_options.each do |key, value| %>
-          <div class="row mb-3">
-            <%= label_tag "judge_options[#{key}]", key.to_s.humanize.titleize, class: 'col-sm-2 col-form-label' %>
+        <%# Options a provider declares are rendered as the widget it asked for, whether or
+            not this judge has them saved yet, and are shown only with the provider that
+            owns them -- so nobody has to hand-edit the JSON tab to reach a known setting. %>
+        <% specs = LlmProviders.option_field_specs %>
+        <% stored = @ai_judge.judge_options.map { |key, value| [ key.to_s, value ] } %>
+        <% unsaved = specs.keys.reject { |key| stored.any? { |stored_key, _| stored_key == key } } %>
+        <% rows = (stored + unsaved.map { |key| [ key, nil ] }).sort_by { |key, _| 'llm_provider' == key ? 0 : 1 } %>
+        <% rows.each do |key, value| %>
+          <% spec = specs[key] %>
+          <div class="row mb-3 <%= 'provider-option-field' if spec %>"
+               <%= "data-provider=#{spec[:provider]}".html_safe if spec %>
+               <%= 'style=display:none;'.html_safe if spec %>>
+            <%= label_tag "judge_options[#{key}]", spec&.dig(:label) || key.humanize.titleize, class: 'col-sm-2 col-form-label' %>
             <div class="col-sm-4">
-              <% if key.to_s == 'llm_provider' %>
+              <% if 'llm_provider' == key %>
                 <%= select_tag "user[judge_options][llm_provider]",
                       options_for_select(LlmProviders.select_options, value.to_s),
                       id: 'judge_options_llm_provider',
                       class: 'form-select form-select-sm structured-field'
                 %>
+              <% elsif :number == spec&.dig(:type) %>
+                <%= number_field_tag "user[judge_options][#{key}]", value,
+                      id: "judge_options_#{key}", min: spec[:min], max: spec[:max], step: spec[:step],
+                      class: 'form-control form-control-sm structured-field' %>
               <% else %>
                 <%= text_field_tag "user[judge_options][#{key}]", value,
                   id: "judge_options_#{key}",
                   class: 'form-control form-control-sm structured-field'
                 %>
+              <% end %>
+              <% if spec&.dig(:hint).present? %>
+                <div class="form-text"><%= spec[:hint] %></div>
               <% end %>
             </div>
           </div>
@@ -84,8 +100,10 @@
 
 
     <div class="row mb-3">
-      <%= form.label :system_prompt, class: 'col-sm-2 col-form-label' %>
+      <%= form.label :system_prompt, class: 'col-sm-2 col-form-label', id: 'system-prompt-label' %>
       <%= form.textarea :system_prompt, class: "form-control", rows: 6 %>
+      <div id="system-prompt-hint" class="form-text" style="display:none;"></div>
+      <div id="system-prompt-warning" class="alert alert-warning mt-2 mb-0 small" style="display:none;"></div>
     </div>
   </div>
 
@@ -111,8 +129,69 @@
       field.disabled = false;
     });
 
+    // The two tabs are one set of values seen two ways, and only the visible one is
+    // submitted. Without syncing, editing a field and switching tabs shows the *stored*
+    // value instead of what you just typed -- and saving from there silently discards it.
+    // Anything in options that has no field of its own (or belongs to another provider)
+    // is carried through untouched.
+    let otherOptions = {};
+
+    function readStoredOptions() {
+      try {
+        const stored = JSON.parse(jsonField.value || '{}');
+        const { judge_options: _ignored, ...rest } = stored;
+        otherOptions = rest;
+      } catch (error) {
+        otherOptions = {};
+      }
+    }
+
+    function collectJudgeOptions() {
+      const collected = {};
+
+      document.querySelectorAll('#pills-structured-fields [id^="judge_options_"]').forEach(function(field) {
+        const optionRow = field.closest('.provider-option-field');
+        if (optionRow && optionRow.style.display === 'none') return;
+
+        collected[field.id.replace('judge_options_', '')] = field.value;
+      });
+
+      return collected;
+    }
+
+    function showFieldsAsJson() {
+      jsonField.value = JSON.stringify({ ...otherOptions, judge_options: collectJudgeOptions() }, null, 2);
+    }
+
+    function applyJsonToFields() {
+      let parsed;
+
+      try {
+        parsed = JSON.parse(jsonField.value);
+      } catch (error) {
+        return; // leave the fields alone rather than wiping them over a typo
+      }
+
+      const { judge_options: judgeOptions = {}, ...rest } = parsed;
+      otherOptions = rest;
+
+      Object.entries(judgeOptions).forEach(function([key, value]) {
+        const field = document.getElementById('judge_options_' + key);
+        if (field) field.value = value === null || value === undefined ? '' : value;
+      });
+
+      if (providerSelect && judgeOptions.llm_provider) {
+        providerSelect.value = judgeOptions.llm_provider;
+        updateProviderPanels(providerSelect.value);
+      }
+    }
+
+    readStoredOptions();
+
     // Handle tab changes
     structuredTab.addEventListener('click', function() {
+      applyJsonToFields();
+
       // Enable structured fields
       structuredFields.forEach(field => {
         field.disabled = false;
@@ -123,6 +202,8 @@
     });
 
     jsonTab.addEventListener('click', function() {
+      showFieldsAsJson();
+
       // Enable JSON field
       jsonField.disabled = false;
 
@@ -136,6 +217,11 @@
     // Rendered from the LlmProviders registry (app/models/llm_providers.rb) -- add
     // providers there, not here.
     const PROVIDER_PRESETS = <%= raw LlmProviders.presets_json %>;
+
+    // The prompts Quepid ships. A system prompt still matching one of these is
+    // nobody's work, so switching provider may replace it; anything else was
+    // written by a person and is left alone.
+    const STOCK_SYSTEM_PROMPTS = <%= raw LlmProviders.stock_system_prompts_json %>;
 
     const providerSelect = document.getElementById('judge_options_llm_provider');
     const providerHelp = document.getElementById('provider-help');
@@ -166,12 +252,87 @@
       });
     }
 
+    // What a judge should be told depends on the dialect it speaks: a chat model
+    // needs the rating scale and an output format spelled out, while a typed
+    // model is handed both as part of the request and only needs to be told what
+    // to weigh. So offer the new provider's prompt -- but never over one somebody
+    // has edited.
+    function offerDefaultSystemPrompt(preset) {
+      const field = document.querySelector('textarea[name="user[system_prompt]"]');
+      if (!field || !preset.system_prompt) return;
+
+      // A textarea gives back CRLF where the stored text had LF, so compare normalized.
+      const normalize = text => text.replace(/\r\n?/g, '\n').trim();
+      const current = normalize(field.value);
+      const untouched = current === '' || STOCK_SYSTEM_PROMPTS.some(p => normalize(p) === current);
+      if (!untouched) return;
+
+      field.value = preset.system_prompt;
+    }
+
+    // A chat model is given a system prompt; a typed model is given instructions
+    // on a question. Same stored text, different thing, so say which one this is.
+    function describePromptField(preset) {
+      const label = document.getElementById('system-prompt-label');
+      const hint = document.getElementById('system-prompt-hint');
+      const warning = document.getElementById('system-prompt-warning');
+      const field = document.querySelector('textarea[name="user[system_prompt]"]');
+
+      if (label && preset && preset.prompt_label) label.textContent = preset.prompt_label;
+      panel(hint, preset && preset.prompt_hint);
+
+      // An existing judge switched to another dialect keeps text written for the
+      // old one, which is worse than useless: the stock chat prompt dictates a
+      // 0-3 scale this book may not use, and an output format Jev cannot follow.
+      const normalize = text => text.replace(/\r\n?/g, '\n').trim();
+      const current = field ? normalize(field.value) : '';
+      const foreign = preset && preset.system_prompt &&
+        STOCK_SYSTEM_PROMPTS.some(p => normalize(p) === current) &&
+        normalize(preset.system_prompt) !== current;
+
+      if (foreign) {
+        const name = providerSelect.options[providerSelect.selectedIndex].text;
+        warning.innerHTML =
+          'This text is another provider\'s default, written for a different kind of model. ' +
+          '<button type="button" class="btn btn-sm btn-outline-secondary ms-1" data-use-default-prompt>' +
+          'Use ' + name + '\'s default</button>';
+        warning.style.display = 'block';
+      } else {
+        panel(warning, null);
+      }
+    }
+
+    // Delegated, because the warning's markup is rewritten on every provider change.
+    document.addEventListener('click', function(event) {
+      if (!event.target.matches('[data-use-default-prompt]')) return;
+
+      const preset = PROVIDER_PRESETS[providerSelect.value];
+      const field = document.querySelector('textarea[name="user[system_prompt]"]');
+      if (!preset || !field) return;
+
+      field.value = preset.system_prompt;
+      describePromptField(preset);
+    });
+
     function updateProviderPanels(provider) {
       const preset = PROVIDER_PRESETS[provider];
 
       panel(providerNotice, preset && preset.notice);
       panel(providerHelp, preset && preset.help);
       applyReadOnlyFields(preset);
+      describePromptField(preset);
+      showProviderOptionFields(provider);
+    }
+
+    // A field only one provider understands is disabled while another is selected, so
+    // switching away never posts a setting the chosen provider has no idea about.
+    function showProviderOptionFields(provider) {
+      document.querySelectorAll('.provider-option-field').forEach(function(row) {
+        const mine = row.dataset.provider === provider;
+
+        row.style.display = mine ? '' : 'none';
+        row.querySelectorAll('input').forEach(input => { input.disabled = !mine; });
+      });
     }
 
     if (providerSelect) {
@@ -190,6 +351,7 @@
         if (apiVersionField) apiVersionField.value = preset.llm_api_version;
         if (modelField) modelField.value = preset.llm_model;
 
+        offerDefaultSystemPrompt(preset);
         updateProviderPanels(this.value);
       });
     }

@@ -13,7 +13,7 @@ AI Judges let an LLM stand in for a human judge. An AI Judge is modeled as a spe
   2. Fill in Name and an **LLM Key** (required — help text notes it must be something, even a placeholder like "abc123").
   3. Choose an **LLM Provider** from the dropdown — try each option in turn: OpenAI, Azure OpenAI, Azure AI Foundry, Azure AI Foundry Serverless, Azure AI Foundry Anthropic, Anthropic, Google Gemini, Ollama. (TypeSafe Jev is listed too, but it is a "coming soon" placeholder — see 12.6.)
   4. For each, confirm the LLM Service URL / Model / API Version fields auto-fill with sensible presets and inline help text updates.
-  5. Toggle between the **Structured Fields** and **JSON** tabs for `judge_options` — confirm they're mutually exclusive (editing one disables the other, not just visually but functionally).
+  5. Toggle between the **Structured Fields** and **JSON** tabs for `judge_options` — confirm they're mutually exclusive (editing one disables the other, not just visually but functionally) **and that they agree**: change a field without saving, switch to JSON, and the edit should be there; edit the JSON, switch back, and the fields should show it. Malformed JSON leaves the fields untouched rather than wiping them.
   6. Review/edit the default **System Prompt** (a canned 0–3 relevance-grading prompt with worked examples).
   7. Save.
 - **Expected:** Redirects to the Team show page; the new AI judge appears in the members list with a robot indicator and an Edit link.
@@ -42,13 +42,13 @@ AI Judges let an LLM stand in for a human judge. An AI Judge is modeled as a spe
   1. From the book's **Judgement Stats** tab, click **Refine Prompt** on the AI judge's row.
   2. Confirm the left panel pre-loads the current system prompt, and the right panel loads a random query/doc pair from the book (editable: query_text, doc_id, information_need, document_fields JSON, options JSON, notes, position).
   3. Click **Change Query Doc Pair** — confirm a different random pair loads.
-  4. Edit the system prompt and/or the sample document's fields, click **Run Prompt**.
-  5. Confirm a spinner shows, then the "Rating Information" section displays the LLM's returned rating and explanation.
-  6. With a book selected (`?book_id=`), get the judge to answer outside that book's scale — e.g. temporarily set the system prompt to something like *"Always respond with {\"judgment\": 3, \"explanation\": \"...\"}"* on a 0/1 book — and run it. Confirm "LLM Response:" shows an **Unrateable** badge rather than the out-of-scale number, and the explanation carries the `[LLM returned rating 3.0, outside this book's scale [0, 1]]` annotation. Put the real system prompt back afterwards: Run Prompt **saves** what's in the box to the judge.
+  4. Edit the judge's text (labelled **System prompt** for a chat provider, **Judging instructions** for a typed one like Jev) and/or the sample document's fields, then click **Run Judgement**.
+  5. Confirm a spinner shows, then the "Rating Information" section displays the LLM's returned rating and explanation. With a book selected, the page also shows the rating scale that will be sent: as prose for a chat judge, as the question's criteria for a typed one.
+  6. With a book selected (`?book_id=`), get the judge to answer outside that book's scale — e.g. temporarily set the system prompt to something like *"Always respond with {\"judgment\": 3, \"explanation\": \"...\"}"* on a 0/1 book — and run it. Confirm "LLM Response:" shows an **Unrateable** badge rather than the out-of-scale number, and the explanation carries the `[LLM returned rating 3.0, outside this book's scale [0, 1]]` annotation. Put the real prompt back afterwards: running **saves** what's in the box to the judge.
   7. Click **Back** to return to Judgement Stats, or **Edit Judge** to go to the full AI judge edit form instead.
-- **Expected:** Run Prompt reliably returns a rating + explanation for the sample pair, letting you iterate on the prompt before running it on the whole book. The preview holds the answer to the same rules a real judging run applies, so a rating the book would reject never looks usable here.
+- **Expected:** Run Judgement reliably returns a rating + explanation for the sample pair, letting you iterate on the prompt before running it on the whole book. The preview holds the answer to the same rules a real judging run applies, so a rating the book would reject never looks usable here.
 - **Edge cases:**
-  - [ ] Enter malformed JSON in the Document Fields or Options editors and click Run Prompt — confirm this fails gracefully (no server error page) rather than crashing.
+  - [ ] Enter malformed JSON in the Document Fields or Options editors and run it — confirm this fails gracefully (no server error page) rather than crashing.
   - [ ] Run this against a book with **zero** query/doc pairs — confirm a sensible blank/placeholder pair is used instead of erroring.
 
 ### 12.5 Trigger a judging run ("Judge Judy")
@@ -66,17 +66,20 @@ AI Judges let an LLM stand in for a human judge. An AI Judge is modeled as a spe
   - [ ] Trigger a run when the book already has zero unjudged pairs left — confirm it completes immediately having processed 0, without error.
   - [ ] Confirm **Prepare to Judge!** is disabled/absent once the AI judge has nothing left to judge, or once the book has already reached its judgements-per-pair cap (cross-reference Part 11.7).
 
-### 12.6 A "coming soon" provider is visible but cannot be saved
+### 12.6 Judge with TypeSafe Jev
 
-Some providers are listed in the form before Quepid can actually judge with them, so a team can see what the provider will need and get an API key ready. TypeSafe Jev is the current one.
+Jev is a typed evaluation model rather than a chat model: the book's rating scale is sent as the question's criteria, and the answer comes back as a position on that scale with a probability distribution and a confidence — never prose, and never a rating off the scale. Quepid writes the explanation from those numbers.
 
 - [ ] **Steps:**
-  1. On the AI Judge form (new or edit), pick **TypeSafe Jev (coming soon)** from the LLM Provider dropdown.
-  2. Confirm a yellow **Coming soon** banner appears above the usual blue help panel, saying the provider cannot be saved yet and linking to `console.typesafe.ai/keys` for an account/API key.
-  3. Confirm **LLM Service URL**, **LLM Model** and **LLM API Version** auto-fill (`https://api.typesafe.ai`, `jev-latest`, blank) and become **read-only/greyed**, while **LLM Key**, **Name**, **Timeout** and the system prompt stay editable.
-  4. Fill in Name and LLM Key anyway and click **Save**.
-  5. Switch the provider back to a supported one (e.g. Ollama) — confirm the banner disappears, the help panel updates, and the URL/Model/API Version fields become editable again.
-- **Expected:** Step 4 does **not** create (or update) the judge: the form re-renders with the error "TypeSafe Jev (coming soon) is not available yet, so an AI Judge cannot use it." Step 5 leaves the form fully usable for a supported provider.
+  1. Create (or edit) an AI Judge and pick **TypeSafe Jev** as the LLM Provider.
+  2. Confirm **LLM Service URL** (`https://api.typesafe.ai`), **LLM Model** (`jev-latest`) and **LLM API Version** fill in and are **read-only** — Jev dictates them — while **LLM Key**, Name and Timeout stay editable. Paste your TypeSafe API key (from `console.typesafe.ai/keys`) into LLM Key and save.
+  3. Assign the judge to a book that has a scale with labels (labels become the criteria, so they matter more here than the system prompt does).
+  4. From **Judgement Stats**, use **Refine Prompt** with `?book_id=` set — confirm the page is headed "Refine <judge>'s Judging Instructions", not "...'s Prompt", and that it lists the **criteria** the question will carry (one row per rating, from the book's scale labels) read-only — then click **Run Judgement**.
+  5. Back on Judgement Stats, run a small **Judge Judy** batch (e.g. 10 pairs).
+  6. Open the resulting judgements and read the explanations.
+- **Expected:** every rating is one of the book's own scale values (Jev cannot return anything else), and each explanation reads like `Jev rated 1 ("Relevant") -- raw score 0.57 of 0-1, confidence 0.35. Distribution: 0: 43%, 1: 57%. (model jev-1.13.0)`.
 - **Edge cases:**
-  - [ ] Try the same on the **edit** form for an existing, working judge — confirm the save is refused and the judge keeps its previous provider (it is not half-updated).
-  - [ ] Set the provider to `typesafe_jev` through the **JSON** tab instead of the dropdown — confirm the save is still refused server-side.
+  - [ ] Run the prompt preview **without** a book (`/ai_judges/:id/prompt/edit` with no `book_id`) — confirm it fails gracefully saying Jev needs a book, rather than sending a question with no criteria.
+  - [ ] Point the judge at a book whose scale has **more than 10 values** — confirm it still judges (the question becomes a choice between the rating values rather than a score).
+  - [ ] Set **Minimum confidence** to `0.5` on the judge (a number field that appears only while TypeSafe Jev is the provider, stored in the judge's options JSON — no new column) and re-run — confirm answers below that confidence are saved as **unrateable** with their numbers still in the explanation, and that switching provider away hides and disables the field.
+  - [ ] Judge a book whose documents have an `image` field — confirm judging still works and the image is simply ignored (Jev is text-only).

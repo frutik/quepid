@@ -38,15 +38,52 @@ class AiJudgesControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to team_url(id: team.id)
   end
 
-  test 'new renders the coming soon banner element for placeholder providers' do
+  test 'new offers the chat prompt, and ships every stock prompt for the switcher' do
+    get new_team_ai_judge_url(team_id: team.id)
+
+    assert_select 'textarea[name=?]', 'user[system_prompt]', text: /scale of 0 to 3/
+
+    stock = response.body[/const STOCK_SYSTEM_PROMPTS = (\[.*?\]);$/m, 1]
+
+    assert_not_nil stock, 'STOCK_SYSTEM_PROMPTS was not rendered into the form'
+    assert_equal LlmProviders.stock_system_prompts, JSON.parse(stock)
+  end
+
+  test 'new offers a provider own option as a field, inert until that provider is chosen' do
+    get new_team_ai_judge_url(team_id: team.id)
+
+    assert_select '.provider-option-field[data-provider=?]', 'typesafe_jev' do
+      assert_select 'input#judge_options_jev_min_confidence[type=number][min=?][max=?][step=?]', '0', '1', '0.1'
+    end
+  end
+
+  test 'a provider own option is stored in the judge options json, with no new column' do
+    post team_ai_judges_url(team_id: team.id),
+         params: { user: {
+           name:          'Picky Jev',
+           llm_key:       'abc123',
+           system_prompt: 'Judge this',
+           judge_options: { llm_provider: 'typesafe_jev', jev_min_confidence: '0.4' },
+         } }
+
+    judge = User.order(:id).last
+
+    assert_equal '0.4', judge.judge_options[:jev_min_confidence]
+    assert_equal '0.4', judge.options.dig('judge_options', 'jev_min_confidence')
+  end
+
+  test 'new renders the banner element placeholder providers would use' do
     get new_team_ai_judge_url(team_id: team.id)
 
     assert_select 'div#provider-notice'
     assert_select 'select#judge_options_llm_provider option[value=?]', 'typesafe_jev'
   end
 
-  test 'does not create an ai_judge pointed at a provider that is not available yet' do
-    assert_no_difference('User.count') do
+  # The refusal path (a provider carrying a coming-soon notice cannot be saved)
+  # has no provider to exercise it now that Jev is real; the rule itself is
+  # tested as LlmProvider#coming_soon? in test/models/llm_providers_test.rb.
+  test 'saves a judge pointed at a provider that is available' do
+    assert_difference('User.count', 1) do
       post team_ai_judges_url(team_id: team.id),
            params: { user: {
              name:          'Jev Judge',
@@ -56,17 +93,8 @@ class AiJudgesControllerTest < ActionDispatch::IntegrationTest
            } }
     end
 
-    assert_response :success
-    assert_match(/not available yet/, response.body)
-  end
-
-  test 'does not update an existing ai_judge onto a provider that is not available yet' do
-    put team_ai_judge_url(team_id: team.id, id: ai_judge.id),
-        params: { user: { judge_options: { llm_provider: 'typesafe_jev' } } }
-
-    assert_response :success
-    assert_match(/not available yet/, response.body)
-    assert_not_equal 'typesafe_jev', ai_judge.reload.judge_options[:llm_provider]
+    assert_redirected_to team_url(id: team.id)
+    assert_equal 'typesafe_jev', User.order(:id).last.judge_options[:llm_provider]
   end
 
   test 'should destroy ai_judge' do

@@ -30,6 +30,72 @@ module AiJudges
       end
     end
 
+    test 'flags instructions written for another kind of model, and offers the right default' do
+      ai_judge.update!(system_prompt: LlmProviders::CHAT_SYSTEM_PROMPT,
+                       judge_options: { llm_provider: 'typesafe_jev' })
+
+      get edit_ai_judge_prompt_url(ai_judge_id: ai_judge.id)
+
+      assert_response :success
+      assert_select '#prompt-dialect-warning'
+      assert_select '[data-use-default-prompt]', text: /Use TypeSafe Jev's default/
+    end
+
+    test 'says nothing when the instructions already belong to this provider' do
+      ai_judge.update!(system_prompt: LlmProviders::JEV_SYSTEM_PROMPT,
+                       judge_options: { llm_provider: 'typesafe_jev' })
+
+      get edit_ai_judge_prompt_url(ai_judge_id: ai_judge.id)
+
+      assert_response :success
+      assert_select '#prompt-dialect-warning', count: 0
+    end
+
+    test 'says nothing about a prompt somebody wrote themselves' do
+      ai_judge.update!(system_prompt: 'Only rate wine labels.',
+                       judge_options: { llm_provider: 'typesafe_jev' })
+
+      get edit_ai_judge_prompt_url(ai_judge_id: ai_judge.id)
+
+      assert_response :success
+      assert_select '#prompt-dialect-warning', count: 0
+    end
+
+    test 'shows the book scale as the criteria a typed model will be sent' do
+      ai_judge.update!(judge_options: { llm_provider: 'typesafe_jev' })
+
+      get edit_ai_judge_prompt_url(ai_judge_id: ai_judge.id), params: { book_id: book.id }
+
+      assert_response :success
+      assert_select '#judging-criteria', text: /Criteria sent with the question/
+      assert_select '#judging-criteria td', text: /Not Relevant/
+      assert_select '#judging-criteria td', text: /level 1 . rating 1/
+    end
+
+    test 'shows a chat judge the scale as the prose its prompt will carry' do
+      get edit_ai_judge_prompt_url(ai_judge_id: ai_judge.id), params: { book_id: book.id }
+
+      assert_response :success
+      assert_select '#judging-criteria', text: /Rating scale added to the prompt/
+      assert_select '#judging-criteria p', text: /0 \(labeled "Not Relevant"\)/
+    end
+
+    test 'shows no criteria when there is no book to take them from' do
+      get edit_ai_judge_prompt_url(ai_judge_id: ai_judge.id)
+
+      assert_response :success
+      assert_select '#judging-criteria', count: 0
+    end
+
+    test 'still renders for a judge that has been removed from its team' do
+      ai_judge.teams.destroy_all
+
+      get edit_ai_judge_prompt_url(ai_judge_id: ai_judge.id)
+
+      assert_response :success
+      assert_select 'a', text: 'Edit Judge', count: 0
+    end
+
     describe 'patch update' do
       setup { register_default_openai_stubs }
 

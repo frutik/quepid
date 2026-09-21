@@ -66,6 +66,33 @@ class JudgeScaleTest < ActiveSupport::TestCase
     assert_not scale.includes?(0)
   end
 
+  test 'criteria describe every level in order, low to high' do
+    scale = JudgeScale.new([ 0, 1, 2 ], { '0' => 'Poor', '2' => 'Perfect' })
+
+    assert_equal [ 'Poor', "Rating 1 on this book's scale", 'Perfect' ], scale.criteria
+  end
+
+  test 'criteria can also be keyed by the rating, for picking one of many' do
+    scale = JudgeScale.new([ 0, 1 ], { '1' => 'Relevant' })
+
+    assert_equal({ '0' => "Rating 0 on this book's scale", '1' => 'Relevant' }, scale.criteria_by_value)
+  end
+
+  test 'a position on the level spectrum becomes one of the book own rating values' do
+    scale = JudgeScale.new([ 1, 2, 3, 4 ])
+
+    assert_equal 1, scale.value_for_level(0)
+    assert_equal 2, scale.value_for_level(0.6), 'rounds to the nearest level'
+    assert_equal 1, scale.value_for_level(0.4)
+    assert_equal 4, scale.value_for_level(99), 'clamps to the top of the scale'
+    assert_equal 1, scale.value_for_level(-3), 'clamps to the bottom too'
+  end
+
+  test 'there is no level to map when the scale is empty' do
+    assert_nil JudgeScale.new([]).value_for_level(1)
+    assert_nil JudgeScale.new([ 0, 1 ]).value_for_level(nil)
+  end
+
   test 'built from a book it reads that book s scale and labels' do
     book = books(:james_bond_movies)
     scale = JudgeScale.for(book)

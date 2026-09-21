@@ -13,22 +13,69 @@
 
   <%= hidden_field_tag :book_id, @book.id if @book%>
 
+  <% prompt_label = @provider&.prompt_label || 'System prompt' %>
   <div class="row gx-5">
     <div class="col-md-6">
-      <h2>Prompt Settings</h2>
+      <h2><%= prompt_label.titleize %></h2>
       <div>
         <div>
           <%= form.textarea :system_prompt, class: "form-control", rows: 20  %>
+          <% if @provider&.prompt_hint.present? %>
+            <div class="form-text"><%= @provider.prompt_hint %></div>
+          <% end %>
+          <%# A judge created (or switched) before this provider existed keeps text written
+              for another dialect -- for Jev that means a hardcoded 0-3 scale and a response
+              format it cannot follow. Say so, and offer the right default. %>
+          <% if @provider&.stock_prompt_from_another_provider?(ai_judge.system_prompt) %>
+            <div class="alert alert-warning mt-2 mb-0 small" id="prompt-dialect-warning">
+              These are another provider's default instructions, written for a different kind of model.
+              <button type="button" class="btn btn-sm btn-outline-secondary ms-1"
+                      data-use-default-prompt
+                      data-default-prompt="<%= @provider.default_system_prompt %>">
+                Use <%= @provider.label %>'s default
+              </button>
+            </div>
+          <% end %>
         </div>
         <div>
           <p/>
         </div>
+        <%# The other half of what gets sent: for a typed model the book's scale IS the
+            question's criteria, so show them here rather than making people guess. %>
+        <% scale = JudgeScale.for(@book) %>
+        <% if @book && scale.present? %>
+          <div class="mt-3" id="judging-criteria">
+            <h3 class="h6 mb-1">
+              <%= @provider&.scale_as_criteria? ? 'Criteria sent with the question' : 'Rating scale added to the prompt' %>
+              <small class="text-muted fw-normal">&mdash; from <%= link_to @book.name, book_path(@book) %>'s scale</small>
+            </h3>
+            <% if @provider&.scale_as_criteria? %>
+              <table class="table table-sm table-borderless small mb-1 w-auto">
+                <tbody>
+                  <% scale.values.each_with_index do |value, level| %>
+                    <tr>
+                      <td class="pe-3 text-muted">level <%= level %> &rarr; rating <strong><%= value %></strong></td>
+                      <td><%= scale.criteria[level] %></td>
+                    </tr>
+                  <% end %>
+                </tbody>
+              </table>
+            <% else %>
+              <p class="small mb-1"><%= scale.describe %></p>
+            <% end %>
+            <div class="form-text">Read-only here. Edit the labels in the book's settings to change them.</div>
+          </div>
+        <% end %>
+
         <div>
-          <%= form.submit 'Run Prompt', class: 'btn btn-primary' %>
+          <%= form.submit 'Run Judgement', class: 'btn btn-primary' %>
 
           <div class="d-grid gap-2 mt-2">
             <%= link_to 'Back', judgement_stats_book_path(@book), method: :get, class: 'btn btn-light' if @book %>
-            <%= link_to 'Edit Judge', edit_team_ai_judge_path(team_id: @ai_judge.teams.first.id, id: @ai_judge.id), method: :get, class: 'btn btn-light' %>
+            <%# a judge removed from its team has nowhere to be edited; the rest of this page still works %>
+            <% if (judge_team = @ai_judge.teams.first) %>
+              <%= link_to 'Edit Judge', edit_team_ai_judge_path(team_id: judge_team.id, id: @ai_judge.id), method: :get, class: 'btn btn-light' %>
+            <% end %>
           </div>
         </div>
       </div>
@@ -116,3 +163,16 @@
 
 
 <% end %>
+
+<script>
+  document.addEventListener('click', function(event) {
+    const button = event.target.closest('[data-use-default-prompt]');
+    if (!button) return;
+
+    const field = document.querySelector('textarea[name="user[system_prompt]"]');
+    if (!field) return;
+
+    field.value = button.dataset.defaultPrompt;
+    document.getElementById('prompt-dialect-warning')?.remove();
+  });
+</script>

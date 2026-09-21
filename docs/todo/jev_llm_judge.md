@@ -12,11 +12,11 @@ to `RunJudgeJudyJob`, `Judgement`, or any scoring code.
 > registry entry. The per-file breakdown in §4 below describes the *standalone* shape, kept for
 > the case where the foundation PR is skipped.
 >
-> **Already landed (ADR §5.3 B0):** Jev is listed in the AI Judge form as a "coming soon"
-> placeholder — fixed endpoint and model shown read-only, a banner linking to
-> `console.typesafe.ai/keys`, and a controller guard that refuses to save a judge pointed at it.
-> No adapter, no judging. Making it real means writing the adapter and removing the entry's
-> `notice_html`.
+> **Landed (ADR §5.3 B0–B2):** `LlmJudgeAdapters::Jev` implements this plan's §3 decisions, and
+> the registry entry is a real provider — the "coming soon" notice is gone, the endpoint and model
+> it dictates stay read-only, and the help text explains that the book's scale becomes the
+> criteria. What remains of this document is background: the API research and the reasoning
+> behind the mapping choices.
 
 ## 1. Why, and why it doesn't fit the existing code path
 
