@@ -66,17 +66,20 @@ AI Judges let an LLM stand in for a human judge. An AI Judge is modeled as a spe
   - [ ] Trigger a run when the book already has zero unjudged pairs left — confirm it completes immediately having processed 0, without error.
   - [ ] Confirm **Prepare to Judge!** is disabled/absent once the AI judge has nothing left to judge, or once the book has already reached its judgements-per-pair cap (cross-reference Part 11.7).
 
-### 12.6 A "coming soon" provider is visible but cannot be saved
+### 12.6 Judge with TypeSafe Jev
 
-Some providers are listed in the form before Quepid can actually judge with them, so a team can see what the provider will need and get an API key ready. TypeSafe Jev is the current one.
+Jev is a typed evaluation model rather than a chat model: the book's rating scale is sent as the question's criteria, and the answer comes back as a position on that scale with a probability distribution and a confidence — never prose, and never a rating off the scale. Quepid writes the explanation from those numbers.
 
 - [ ] **Steps:**
-  1. On the AI Judge form (new or edit), pick **TypeSafe Jev (coming soon)** from the LLM Provider dropdown.
-  2. Confirm a yellow **Coming soon** banner appears above the usual blue help panel, saying the provider cannot be saved yet and linking to `console.typesafe.ai/keys` for an account/API key.
-  3. Confirm **LLM Service URL**, **LLM Model** and **LLM API Version** auto-fill (`https://api.typesafe.ai`, `jev-latest`, blank) and become **read-only/greyed**, while **LLM Key**, **Name**, **Timeout** and the system prompt stay editable.
-  4. Fill in Name and LLM Key anyway and click **Save**.
-  5. Switch the provider back to a supported one (e.g. Ollama) — confirm the banner disappears, the help panel updates, and the URL/Model/API Version fields become editable again.
-- **Expected:** Step 4 does **not** create (or update) the judge: the form re-renders with the error "TypeSafe Jev (coming soon) is not available yet, so an AI Judge cannot use it." Step 5 leaves the form fully usable for a supported provider.
+  1. Create (or edit) an AI Judge and pick **TypeSafe Jev** as the LLM Provider.
+  2. Confirm **LLM Service URL** (`https://api.typesafe.ai`), **LLM Model** (`jev-latest`) and **LLM API Version** fill in and are **read-only** — Jev dictates them — while **LLM Key**, Name and Timeout stay editable. Paste your TypeSafe API key (from `console.typesafe.ai/keys`) into LLM Key and save.
+  3. Assign the judge to a book that has a scale with labels (labels become the criteria, so they matter more here than the system prompt does).
+  4. From **Judgement Stats**, use **Refine Prompt** with `?book_id=` set and click Run Prompt.
+  5. Back on Judgement Stats, run a small **Judge Judy** batch (e.g. 10 pairs).
+  6. Open the resulting judgements and read the explanations.
+- **Expected:** every rating is one of the book's own scale values (Jev cannot return anything else), and each explanation reads like `Jev rated 1 ("Relevant") -- raw score 0.57 of 0-1, confidence 0.35. Distribution: 0: 43%, 1: 57%. (model jev-1.13.0)`.
 - **Edge cases:**
-  - [ ] Try the same on the **edit** form for an existing, working judge — confirm the save is refused and the judge keeps its previous provider (it is not half-updated).
-  - [ ] Set the provider to `typesafe_jev` through the **JSON** tab instead of the dropdown — confirm the save is still refused server-side.
+  - [ ] Run the prompt preview **without** a book (`/ai_judges/:id/prompt/edit` with no `book_id`) — confirm it fails gracefully saying Jev needs a book, rather than sending a question with no criteria.
+  - [ ] Point the judge at a book whose scale has **more than 10 values** — confirm it still judges (the question becomes a choice between the rating values rather than a score).
+  - [ ] Add `"jev_min_confidence": 0.5` under `judge_options` on the JSON tab and re-run — confirm low-confidence answers are saved as **unrateable** with their numbers still in the explanation.
+  - [ ] Judge a book whose documents have an `image` field — confirm judging still works and the image is simply ignored (Jev is text-only).

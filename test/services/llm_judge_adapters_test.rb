@@ -26,12 +26,12 @@ class LlmJudgeAdaptersTest < ActiveSupport::TestCase
                          LlmJudgeAdapters.for('a-key', { llm_provider: 'google_gemini' })
     end
 
-    test 'a provider we cannot judge with yet refuses to build an adapter' do
-      error = assert_raises(RuntimeError) do
-        LlmJudgeAdapters.for('a-key', { llm_provider: 'typesafe_jev' })
-      end
+    test 'an unknown provider name falls back to the OpenAI dialect rather than blowing up' do
+      assert_instance_of LlmJudgeAdapters::OpenAi, LlmJudgeAdapters.for('a-key', { llm_provider: 'made_up' })
+    end
 
-      assert_match(/not available as an LLM judge yet/, error.message)
+    test 'TypeSafe Jev speaks its own dialect' do
+      assert_instance_of LlmJudgeAdapters::Jev, LlmJudgeAdapters.for('a-key', { llm_provider: 'typesafe_jev' })
     end
   end
 

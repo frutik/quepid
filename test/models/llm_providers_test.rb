@@ -22,8 +22,7 @@ class LlmProvidersTest < ActiveSupport::TestCase
                                        'https://generativelanguage.googleapis.com/v1beta/openai', '',
                                        'gemini-2.0-flash' ],
     'ollama'                      => [ 'Ollama', :from_config, '', 'qwen3:0.6b' ],
-    'typesafe_jev'                => [ 'TypeSafe Jev (coming soon)', 'https://api.typesafe.ai', '',
-                                       'jev-latest' ],
+    'typesafe_jev'                => [ 'TypeSafe Jev', 'https://api.typesafe.ai', '', 'jev-latest' ],
   }.freeze
 
   test 'registers every provider the form offered, in the same order' do
@@ -101,15 +100,13 @@ class LlmProvidersTest < ActiveSupport::TestCase
     LlmProviders.each do |provider|
       expected_adapter = if anthropic_keys.include?(provider.key)
                            'LlmJudgeAdapters::Anthropic'
+                         elsif 'typesafe_jev' == provider.key
+                           'LlmJudgeAdapters::Jev'
                          else
                            'LlmJudgeAdapters::OpenAi'
                          end
 
-      if 'typesafe_jev' == provider.key
-        assert_nil provider.adapter, 'a provider we cannot judge with has no adapter'
-      else
-        assert_equal expected_adapter, provider.adapter, "#{provider.key} adapter"
-      end
+      assert_equal expected_adapter, provider.adapter, "#{provider.key} adapter"
     end
 
     assert_equal :x_api_key, LlmProviders['anthropic'].auth_style
@@ -131,21 +128,28 @@ class LlmProvidersTest < ActiveSupport::TestCase
     end
   end
 
-  test 'only the placeholder providers are coming soon' do
-    assert_equal [ 'typesafe_jev' ], LlmProviders.coming_soon.map(&:key)
-    assert_not_predicate LlmProviders['openai'], :coming_soon?
-    assert_empty LlmProviders['openai'].read_only_fields
+  test 'every listed provider can actually be judged with' do
+    assert_empty LlmProviders.coming_soon,
+                 'a provider carrying a notice is a placeholder; none should be listed as one right now'
+    assert_not_predicate LlmProviders['typesafe_jev'], :coming_soon?
     assert_nil LlmProviders['openai'].to_preset[:notice]
+    assert_empty LlmProviders['openai'].read_only_fields
   end
 
-  test 'jev tells the team what it needs and links to where the key comes from' do
+  test 'a provider carrying a notice is treated as a placeholder' do
+    placeholder = LlmProvider.new(key: 'someday', label: 'Someday', default_service_url: 'https://example.com',
+                                  default_model: 'x', help_html: 'h', notice_html: 'Not yet')
+
+    assert_predicate placeholder, :coming_soon?
+    assert_equal 'Not yet', placeholder.to_preset[:notice]
+  end
+
+  test 'jev fixes the endpoint and model it dictates, and says where a key comes from' do
     jev = LlmProviders['typesafe_jev']
 
-    assert_predicate jev, :coming_soon?
-    assert_includes jev.notice_html, 'Coming soon'
-    assert_includes jev.notice_html, 'https://console.typesafe.ai/keys'
-    assert_includes jev.notice_html, 'LLM Key'
     assert_equal %w[llm_service_url llm_model llm_api_version], jev.read_only_fields
     assert_equal jev.read_only_fields, jev.to_preset[:read_only]
+    assert_includes jev.help_html, 'https://console.typesafe.ai/keys'
+    assert_includes jev.help_html, 'jev_min_confidence'
   end
 end

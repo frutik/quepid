@@ -174,26 +174,27 @@ module LlmProviders
     def typesafe_jev
       LlmProvider.new(
         key:                 'typesafe_jev',
-        adapter:             nil,
-        label:               'TypeSafe Jev (coming soon)',
+        adapter:             'LlmJudgeAdapters::Jev',
+        label:               'TypeSafe Jev',
         default_service_url: 'https://api.typesafe.ai',
         default_model:       'jev-latest',
         read_only_fields:    %w[llm_service_url llm_model llm_api_version],
-        notice_html:         '<strong>Coming soon.</strong> Quepid cannot judge with Jev yet &mdash; ' \
-                             'support is still being built, so this provider cannot be saved.<br>' \
-                             'To get ready, create an account and an API key at ' \
-                             '<a href="https://console.typesafe.ai/keys" target="_blank" rel="noopener">' \
-                             'console.typesafe.ai/keys</a> and paste it into <b>LLM Key</b> above.',
-        help_html:           '<strong>TypeSafe Jev (coming soon)</strong> &mdash; Typed evaluation model: ' \
-                             'it returns a rating with a probability distribution instead of text.<br>' \
+        help_html:           '<strong>TypeSafe Jev</strong> &mdash; A typed evaluation model rather than a ' \
+                             'chat model: it answers with a rating, a probability distribution and a ' \
+                             'confidence, and cannot return a rating outside your scale.<br>' \
                              '<b>URL:</b> <code>https://api.typesafe.ai</code> (fixed)<br>' \
                              '<b>Model:</b> <code>jev-latest</code> (fixed)<br>' \
                              '<b>Key:</b> Your TypeSafe API key from ' \
-                             '<code>console.typesafe.ai/keys</code><br>' \
+                             '<a href="https://console.typesafe.ai/keys" target="_blank" rel="noopener">' \
+                             'console.typesafe.ai/keys</a><br>' \
                              '<b>API Version:</b> Not used<br>' \
-                             'The book\'s rating scale and labels become the judging criteria, so the ' \
-                             'system prompt matters less than it does for a chat model. Text only &mdash; ' \
-                             'document images are ignored.'
+                             'The book\'s rating scale and labels become the judging criteria, so a Jev ' \
+                             'judge must be run from a book, and its system prompt only says what to weigh ' \
+                             '&mdash; not the scale or an output format. It writes no prose, so the ' \
+                             'explanation Quepid stores is built from the score, confidence and ' \
+                             'distribution. Text only &mdash; document images are ignored. Optional: add ' \
+                             '<code>jev_min_confidence</code> (e.g. <code>0.4</code>) on the JSON tab to ' \
+                             'mark answers below that confidence unrateable.'
       )
     end
 
