@@ -55,18 +55,19 @@ Vectors are keyed on the **case**, never on the search endpoint and never global
 create_table :document_embeddings do |t|
   t.integer :case_id, null: false
   t.string  :doc_id, limit: 500, null: false
-  t.string  :fingerprint, null: false, limit: 64   # Embedder#document_fingerprint
+  t.string  :fingerprint, null: false, limit: 64, charset: 'ascii'   # Embedder#document_fingerprint (hex)
   t.string  :text_digest, null: false, limit: 64   # digest of the exact text sent
   t.integer :dimensions, null: false
-  t.binary  :vector, null: false                   # packed little-endian float32
+  t.binary  :vector, null: false                   # packed little-endian float32; BLOB / bytea / BLOB
   t.timestamps
 end
-add_index :document_embeddings, [ :case_id, :fingerprint ]
-add_index :document_embeddings, [ :case_id, :doc_id ], length: { doc_id: 191 }   # same prefix as ratings
+add_index :document_embeddings, [ :case_id, :doc_id, :fingerprint ], unique: true,
+          name: 'index_document_embeddings_on_case_doc_fingerprint'
 ```
 
-- **Vectors are binary, not JSON.** `vector.pack('e*')` / `unpack('e*')`: 4 bytes per component (6 KB for 1536 dims) against ~15–20 KB of JSON. Nothing reads them outside Ruby, so the JSON readability argument behind `query_vec` doesn't apply. Verify `t.binary` round-trips on both MySQL and PostgreSQL, as `embedders` did for its JSON helpers.
-- **One current row per `(case_id, doc_id, fingerprint)`, upserted.** A unique index isn't possible with the prefix-indexed `doc_id`, so the upsert finds the row and updates or creates it inside the job. Only one job runs per case at a time (phase 3), so there's no race.
+- **Vectors are binary, not JSON.** `vector.pack('e*')` / `unpack('e*')`: 4 bytes per component (6 KB for 1536 dims) against ~15–20 KB of JSON. Nothing reads them outside Ruby, so the JSON readability argument behind `query_vec` doesn't apply. `t.binary` maps to `BLOB` on MySQL, `bytea` on PostgreSQL and `BLOB` on SQLite, and the schema already uses it (e.g. `t.binary "queries", size: :medium`). `'e*'` fixes the byte order, so a vector reads back the same whatever machine wrote it. A MySQL `BLOB` holds 64 KB, i.e. up to 16,383 dimensions, so the model validates `dimensions` against that. Add a round-trip test that runs on all three adapters.
+- **One row per `(case_id, doc_id, fingerprint)`, enforced by a unique index.** The full columns fit in MySQL 8.4's 3,072-byte InnoDB index key: utf8mb4 `doc_id(500)` is 2,000 bytes, `case_id` 4 and the ASCII `fingerprint` 64. That's why no 191-character prefix is needed, unlike the legacy `ratings` index, which dates from the old 767-byte limit. PostgreSQL and SQLite have no such limit, and Rails ignores `charset:` on them (verify in the migration).
+- **Writes are one `upsert_all` per batch.** Rails supports it on all three adapters, but the conflict target differs. PostgreSQL and SQLite need `unique_by: :index_document_embeddings_on_case_doc_fingerprint` (without it they conflict on the primary key, which never matches). MySQL rejects `unique_by` and uses `ON DUPLICATE KEY`, which matches any unique index. So pass `unique_by` everywhere except MySQL (`AdapterFunctions.mysql?`), and cover the upsert with a test on each adapter.
 - A row is **current** when its `fingerprint` matches the case embedder's `document_fingerprint` and its `text_digest` matches the text that would be sent now. Anything else is re-embedded.
 - Old rows from a previous embedder stay until the case is deleted, or are pruned by the job: it deletes the case's rows with a different fingerprint after a successful run.
 - `Case has_many :document_embeddings, dependent: :delete_all`, and `Case#really_destroy` deletes them explicitly as well, like snapshots/queries. Case clone does **not** copy them (cheap to recompute). Case export does not include them.
@@ -95,7 +96,7 @@ Stored in its own column, **not in `cases.options`**: `cases.options` is merged 
 add_column :cases, :diversity_depth, :integer # k; nil = 10
 ```
 
-Tests: `FieldSpec#title_field` parity fixture (explicit `title:`, JSON definition, first bare field, only `id`, `+`-joined specs); text building with a missing, blank, array and nested title; depth validation (2 to 100); upsert and pruning; case delete removes embeddings.
+Tests: `FieldSpec#title_field` parity fixture (explicit `title:`, JSON definition, first bare field, only `id`, `+`-joined specs); text building with a missing, blank, array and nested title; depth validation (2 to 100); vector round-trip, unique index and upsert on MySQL, PostgreSQL and SQLite; pruning; case delete removes embeddings.
 
 ## Phase 3: Diversity for a snapshot
 
