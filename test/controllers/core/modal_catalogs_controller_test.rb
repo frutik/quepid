@@ -92,7 +92,7 @@ module Core
       assert_equal scorer.id, data['scorer_id']
       assert data['owned']
       communal = css_select('[data-catalog-list="communal"] li').first
-      assert_equal %w[code communal name scale scale_with_labels scorer_id show_scale_labels], JSON.parse(communal['data-scorer-json']).keys.sort
+      assert_equal %w[code communal name scale scale_with_labels scorer_id show_scale_labels uses_diversity uses_ratings], JSON.parse(communal['data-scorer-json']).keys.sort
     end
 
     test 'communal-only configuration excludes custom scorers' do

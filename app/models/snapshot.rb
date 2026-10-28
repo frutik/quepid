@@ -4,13 +4,15 @@
 #
 # Table name: snapshots
 #
-#  id         :integer          not null, primary key
-#  name       :string(250)
-#  created_at :datetime
-#  updated_at :datetime         not null
-#  case_id    :integer
-#  scorer_id  :bigint
-#  try_id     :bigint
+#  id             :integer          not null, primary key
+#  diversity      :float(24)
+#  diversity_meta :json
+#  name           :string(250)
+#  created_at     :datetime
+#  updated_at     :datetime         not null
+#  case_id        :integer
+#  scorer_id      :bigint
+#  try_id         :bigint
 #
 # Indexes
 #
@@ -41,6 +43,26 @@ class Snapshot < ApplicationRecord
 
   # Callbacks
   before_validation :set_defaults
+
+  # Was the diversity computed (ComputeSnapshotDiversityJob) with the settings the case has now?
+  # The title field belongs to the snapshot's own try, so it can't go stale; it is compared
+  # between two snapshots instead (see #diversity_comparable_with?).
+  def diversity_stale?
+    meta = diversity_meta
+    return false unless meta.is_a?(Hash) && 'done' == meta['status'] && self.case
+
+    meta['fingerprint'] != self.case.effective_diversity_embedder&.document_fingerprint ||
+      meta['depth'] != self.case.effective_diversity_depth
+  end
+
+  # Two diversity values are only comparable when made the same way.
+  def diversity_comparable_with? other
+    mine = diversity_meta
+    theirs = other.diversity_meta
+    return false unless mine.is_a?(Hash) && theirs.is_a?(Hash)
+
+    %w[fingerprint title_field depth].all? { |key| mine[key] == theirs[key] }
+  end
   # before_destroy :delete_associated_objects
 
   private

@@ -30,6 +30,13 @@ module Api
         assert_not_includes body['embedders'].pluck('embedder_id'), embedders(:private_ollama).id
       end
 
+      test 'index reports the diversity depth' do
+        get :index, params: { case_id: acase.id }
+
+        assert_nil response.parsed_body['diversity_depth']
+        assert_equal 10, response.parsed_body['effective_diversity_depth']
+      end
+
       test 'index flags a current embedder the user cannot see' do
         acase.update!(embedder: embedders(:private_ollama))
 

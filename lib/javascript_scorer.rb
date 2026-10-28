@@ -16,7 +16,10 @@ class JavascriptScorer
     var scoreResult = null;
     function runScorer(input) {
       scoreResult = null;
-      const scorer = createScorer({ code: input.code, scale: input.scale });
+      // The ILD score needs embeddings, which MiniRacer can't fetch: the caller works it out
+      // beforehand and passes it in (null when there was nothing to measure).
+      const diversity = function() { return Promise.resolve(input.diversity); };
+      const scorer = createScorer({ code: input.code, scale: input.scale }, { diversity: diversity });
       const docs = input.docs.map(function(doc) {
         const rated = doc.rating !== undefined && doc.rating !== null;
         return {
@@ -44,17 +47,21 @@ class JavascriptScorer
   # best_docs - every rated doc for the query, highest rating first: { id:, rating: }.
   # scale     - the scorer's rating scale; its last value is the scorer's `max`.
   # query     - optional :id, :total (numFound) and :options (qOption) of the query.
+  # diversity - the intra-list diversity of the docs, for a scorer that calls scoreByDiversity
+  #             (see ResultDiversity); nil when there is nothing to measure.
   #
   # Returns the numeric score, or nil when the scorer reported no score.
-  def score docs, best_docs, scorer_code, scale: nil, query: {}
+  # rubocop:disable Metrics/ParameterLists
+  def score docs, best_docs, scorer_code, scale: nil, query: {}, diversity: nil
     input = {
-      code:     scorer_code,
-      scale:    scale.presence || [ 0, 1 ],
-      docs:     docs,
-      bestDocs: best_docs,
-      query:    { queryId: query[:id], ratedDocs: [] },
-      total:    query[:total] || docs.length,
-      options:  query[:options],
+      code:      scorer_code,
+      scale:     scale.presence || [ 0, 1 ],
+      docs:      docs,
+      bestDocs:  best_docs,
+      query:     { queryId: query[:id], ratedDocs: [] },
+      total:     query[:total] || docs.length,
+      options:   query[:options],
+      diversity: diversity,
     }
     @context.call('runScorer', input.as_json)
     result = @context.eval('scoreResult')
@@ -68,6 +75,8 @@ class JavascriptScorer
   rescue MiniRacer::Error => e
     raise ScoreError, "JavaScript execution error: #{e.message}"
   end
+
+  # rubocop:enable Metrics/ParameterLists
 
   private
 

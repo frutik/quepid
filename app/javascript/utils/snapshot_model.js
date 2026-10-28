@@ -23,10 +23,14 @@ export function createSnapshotModel({
     docs: params.docs,
     queries: normalizeQueries(params.queries),
     scores: params.scores,
+    diversity: params.diversity ?? null,
+    diversityMeta: params.diversity_meta ?? null,
+    diversityStale: Boolean(params.diversity_stale),
     name: () => `(${formatDate(params.time)}) ${params.name}`,
     allDocIds,
     getSearchResults,
-    getQueryError
+    getQueryError,
+    getDiversity
   }
 
   snapshot.docIdsPerQuery = {}
@@ -67,6 +71,13 @@ export function createSnapshotModel({
     })
 
     return searchResults
+  }
+
+  // The query's intra-list diversity in this snapshot, or null when it has none (fewer than two
+  // results, an error, or not computed).
+  function getDiversity(queryId) {
+    const score = (snapshot.scores || []).find((entry) => isSameId(entry.query_id, queryId))
+    return score?.diversity ?? null
   }
 
   function getQueryError(queryId) {

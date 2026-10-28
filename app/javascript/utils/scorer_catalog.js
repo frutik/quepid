@@ -1,5 +1,8 @@
 import { getJson } from "api/json"
 import { createScorer } from "utils/scorer_runtime"
+import { NO_RATINGS_CLASS, setRatingsLocked } from "utils/ratings_lock"
+
+export { NO_RATINGS_CLASS }
 
 /**
  * The case's default scorer: the one place the core UI loads, selects and
@@ -17,6 +20,12 @@ export function createScorerCatalog({ scorerOptions = {} } = {}) {
   const build = (data) => createScorer(data, scorerOptions)
   let defaultScorer = build()
 
+  // A scorer that never reads ratings (ILD) locks the rating controls (utils/ratings_lock.js)
+  // for as long as it is the default.
+  const applyRatingsVisibility = () => {
+    if (typeof document !== "undefined") setRatingsLocked(defaultScorer.usesRatings === false)
+  }
+
   return {
     getDefault() {
       return defaultScorer
@@ -24,6 +33,7 @@ export function createScorerCatalog({ scorerOptions = {} } = {}) {
 
     select(data) {
       defaultScorer = build(data)
+      applyRatingsVisibility()
       return Promise.resolve(defaultScorer)
     },
 
@@ -31,6 +41,7 @@ export function createScorerCatalog({ scorerOptions = {} } = {}) {
       return getJson(`api/cases/${caseNo}/scorers`).then((response) => {
         const data = response || {}
         defaultScorer = build(data.default)
+        applyRatingsVisibility()
         return data
       })
     }

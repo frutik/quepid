@@ -3,6 +3,7 @@ import { openDynamicModal } from "utils/dynamic_modal"
 import { snapshotDocument } from "stores/query_documents_store"
 import { getCoreCapabilities } from "utils/core_capability_access"
 import { isEsLikeEngine, searchEngineLabel } from "utils/search_engines"
+import { lockIfRatingsUnused } from "utils/ratings_lock"
 import { fromTextArea } from "modules/editor"
 import { withStatusMessages } from "controllers/status_message_behavior"
 
@@ -34,7 +35,9 @@ export default class extends withStatusMessages(Controller) {
   }
 
   connect() {
-    if (!this.isModalRoot) return
+    // The button on a query's toolbar (not the modal): locked when the scorer reads no ratings.
+    if (!this.isModalRoot) return lockIfRatingsUnused(this.element)
+
     this.disconnected = false
     this.lifecycle = {}
     this.adapter = getCoreCapabilities().targetedSearch?.(this.queryIdValue)

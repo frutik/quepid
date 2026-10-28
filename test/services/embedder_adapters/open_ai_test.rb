@@ -15,6 +15,16 @@ module EmbedderAdapters
       { data: vectors.each_with_index.map { |vector, index| { index: index, embedding: vector } } }.to_json
     end
 
+    test 'ignores the input type: OpenAI has no such parameter' do
+      stub = stub_request(:post, URL)
+        .with(body: { model: 'text-embedding-3-small', input: [ 'a' ] })
+        .to_return(status: 200, headers: { 'Content-Type' => 'application/json' }, body: openai_response([ 1.0, 0.0 ]))
+
+      embedder.embed([ 'a' ], input_type: :document)
+
+      assert_requested stub
+    end
+
     test 'posts the model and inputs with a bearer key and returns vectors in order' do
       stub = stub_request(:post, URL)
         .with(body:    { model: 'text-embedding-3-small', input: %w[a b] },

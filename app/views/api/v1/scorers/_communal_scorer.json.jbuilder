@@ -7,3 +7,5 @@ json.name                   scorer.name
 json.scale                  scorer.scale
 json.show_scale_labels      scorer.show_scale_labels
 json.scale_with_labels      scorer.scale_with_labels
+json.uses_diversity         scorer.uses_diversity?
+json.uses_ratings           scorer.uses_ratings?

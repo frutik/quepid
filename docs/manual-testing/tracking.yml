@@ -2357,3 +2357,15 @@ parts:
         result: pass_with_fixes
         notes: "Driven in the user's Chrome on case 6 (20 queries, Ollama all-minilm, 128 dims): rows showed pending badges; Re-vectorize all ran through the SolidQueue worker and the badges cleared without a reload. First pass found that the page never received the vectors (queriesSvc.fetchOptions JSON.parse'd an object the API already returns parsed and silently kept the old options); fixed, re-driven: all 20 queries current with 128-dim query_vec and query_vec_meta in the page, shown in Set Options (closed with Cancel). The user switched the case to a keyless OpenAI embedder: 20 failed badges with OpenAI's 401 in the tooltip, as intended. Not covered live: stale after editing an embedder (model/job tests cover it), adding a query with sync vectorisation (controller test covers it)."
         paths: ["app/services/query_vectorizer.rb", "app/jobs/vectorize_case_queries_job.rb", "app/models/query_vector_status.rb", "app/models/query.rb", "app/javascript/utils/live_query_events.js", "app/javascript/utils/live_query_factory.js", "app/javascript/controllers/query_row_controller.js", "app/views/core/_query_list_templates.html.erb", "app/javascript/controllers/case_embedder_core_controller.js", "app/controllers/api/v1/case_embedders_controller.rb", "app/controllers/api/v1/queries_controller.rb"]
+      "19.5":
+        title: "Score a case by result diversity (ILD@10)"
+        last_run: null
+        result: null
+        notes: ""
+        paths: ["db/scorers/ild@10.js", "app/models/scorer.rb", "app/services/result_diversity.rb", "app/controllers/api/v1/case_diversity_scores_controller.rb", "app/controllers/api/v1/case_scorers_controller.rb", "app/javascript/controllers/pick_scorer_core_controller.js", "app/views/shared/_pick_scorer_core_modal.html.erb", "app/javascript/utils/scorer_runtime.js", "app/javascript/utils/core_workspace_runtime.js", "app/services/fetch_service.rb", "lib/javascript_scorer.rb"]
+      "19.6":
+        title: "Measure the diversity of an existing snapshot"
+        last_run: null
+        result: null
+        notes: ""
+        paths: ["app/jobs/compute_snapshot_diversity_job.rb", "app/services/document_embedder.rb", "app/services/diversity_calculator.rb", "app/services/document_text.rb", "app/models/field_spec.rb", "app/models/document_embedding.rb", "app/controllers/api/v1/snapshots/diversity_controller.rb", "app/controllers/api/v1/case_diversity_settings_controller.rb", "app/javascript/controllers/case_diversity_core_controller.js", "app/javascript/controllers/diff_case_scores_controller.js", "app/javascript/controllers/diff_score_controller.js", "app/javascript/utils/diversity_status.js", "app/views/shared/_case_embedder_core_modal.html.erb"]

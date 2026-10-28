@@ -9,6 +9,8 @@ unless export
   json.communal             scorer.communal
   json.code                 scorer.code
   json.scale                scorer.scale
+  json.uses_diversity       scorer.uses_diversity?
+  json.uses_ratings         scorer.uses_ratings?
   json.owner_id             scorer.owner_id unless export
   json.owned                scorer.owner_id == current_user.id
   json.owner_name           scorer.owner.name if scorer.owner.present?

@@ -117,4 +117,96 @@ describe("DiffCaseScoresController", () => {
     store.setCaseDiffs([{ name: "Baseline", score: { score: 0.75 } }])
     expect(element.querySelectorAll(".case-score")).toHaveLength(0)
   })
+
+  describe("diversity", () => {
+    const meta = (overrides = {}) => ({
+      status: "done",
+      depth: 10,
+      fingerprint: "abc",
+      title_field: "name",
+      embedder_name: "Voyage",
+      ...overrides
+    })
+
+    function render() {
+      const controller = buildControllerFixture(DiffCaseScoresController, { element })
+      controller.connect()
+    }
+
+    it("shows a snapshot's diversity under its score", () => {
+      store.setCaseDiffs([
+        {
+          name: "Baseline",
+          score: { score: 0.75 },
+          diversity: { value: 0.4234, meta: meta(), stale: false }
+        }
+      ])
+
+      render()
+
+      const line = element.querySelector(".diff-diversity")
+      expect(line.textContent).toBe("diversity 0.423")
+      expect(line.title).toContain("Diversity@10")
+      expect(line.classList.contains("text-warning")).toBe(false)
+    })
+
+    it("shows nothing for a snapshot without a value", () => {
+      store.setCaseDiffs([
+        { name: "Baseline", score: { score: 0.75 }, diversity: { value: null, meta: null } },
+        { name: "Tuned", score: { score: 0.5 } }
+      ])
+
+      render()
+
+      expect(element.querySelectorAll(".diff-diversity")).toHaveLength(0)
+    })
+
+    it("flags an outdated value", () => {
+      store.setCaseDiffs([
+        {
+          name: "Baseline",
+          score: { score: 0.75 },
+          diversity: { value: 0.4, meta: meta(), stale: true }
+        }
+      ])
+
+      render()
+
+      const line = element.querySelector(".diff-diversity")
+      expect(line.textContent).toBe("diversity 0.400 (outdated)")
+      expect(line.classList.contains("text-warning")).toBe(true)
+    })
+
+    it("flags values made in different ways as not comparable", () => {
+      store.setCaseDiffs([
+        { name: "A", score: { score: 0.7 }, diversity: { value: 0.4, meta: meta() } },
+        {
+          name: "B",
+          score: { score: 0.7 },
+          diversity: { value: 0.5, meta: meta({ title_field: "label" }) }
+        }
+      ])
+
+      render()
+
+      const lines = [...element.querySelectorAll(".diff-diversity")].map((line) => line.textContent)
+      expect(lines).toEqual([
+        "diversity 0.400 (not comparable)",
+        "diversity 0.500 (not comparable)"
+      ])
+    })
+
+    it("removes the diversity with the badge when comparisons are cleared", () => {
+      store.setCaseDiffs([
+        { name: "A", score: { score: 0.7 }, diversity: { value: 0.4, meta: meta() } }
+      ])
+      const controller = buildControllerFixture(DiffCaseScoresController, { element })
+      controller.connect()
+
+      store.clearCaseDiffs()
+      controller.render()
+
+      expect(element.querySelectorAll(".diff-diversity")).toHaveLength(0)
+    })
+  })
 })

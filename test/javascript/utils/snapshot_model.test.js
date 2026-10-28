@@ -102,4 +102,43 @@ describe("snapshot model", () => {
     expect(snapshot.getSearchResults(7)).toEqual([])
     expect(log).toHaveBeenCalledWith("Document with id missing is null")
   })
+
+  it("exposes the snapshot's and each query's diversity", () => {
+    const snapshot = createSnapshotModel({
+      params: {
+        id: 4,
+        name: "baseline",
+        diversity: 0.42,
+        diversity_meta: { status: "done", depth: 10 },
+        diversity_stale: true,
+        scores: [
+          { query_id: 7, diversity: 0.5 },
+          { query_id: 8, diversity: null }
+        ]
+      },
+      getDoc: () => null,
+      explainDoc: (doc) => doc
+    })
+
+    expect(snapshot.diversity).toBe(0.42)
+    expect(snapshot.diversityMeta).toEqual({ status: "done", depth: 10 })
+    expect(snapshot.diversityStale).toBe(true)
+    expect(snapshot.getDiversity(7)).toBe(0.5)
+    expect(snapshot.getDiversity("7")).toBe(0.5)
+    expect(snapshot.getDiversity(8)).toBeNull()
+    expect(snapshot.getDiversity(99)).toBeNull()
+  })
+
+  it("has no diversity for a snapshot that never computed it", () => {
+    const snapshot = createSnapshotModel({
+      params: { id: 4, name: "baseline" },
+      getDoc: () => null,
+      explainDoc: (doc) => doc
+    })
+
+    expect(snapshot.diversity).toBeNull()
+    expect(snapshot.diversityMeta).toBeNull()
+    expect(snapshot.diversityStale).toBe(false)
+    expect(snapshot.getDiversity(7)).toBeNull()
+  })
 })

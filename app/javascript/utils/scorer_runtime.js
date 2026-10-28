@@ -22,12 +22,21 @@ const copyValue = (value) => {
  *     query: { queryId, ratedDocs }.
  *   checkCode()            -> Promise rejecting with a message on bad code.
  *   getColors(), showScaleLabel(value), teamNames() for rating UIs.
+ *   scoreByDiversity(count), a helper for scorer code: the score is how different the first
+ *     `count` results are from one another (intra-list diversity), not how relevant. It calls
+ *     the `diversity` option -- ({ queryId, docs: [{ id, title }], count }) -> Promise of a
+ *     number, or null when there is nothing to measure -- because the server does the
+ *     embedding. Without that option the scorer errors.
  *   Fields: scorerId, name, displayName, code, scale, scaleWithLabels,
  *     showScaleLabels, colors, communal, owned, ownerId, ownerName, teams,
- *     error, depthOfRating.
+ *     error, depthOfRating, usesRatings (false when the scorer never reads ratings, so nothing
+ *     about unrated results applies).
  * The remaining helpers are runtime internals exposed for tests.
  */
-export function createScorer(data = {}, { schedule, refreshRatedDocs = () => undefined } = {}) {
+export function createScorer(
+  data = {},
+  { schedule, refreshRatedDocs = () => undefined, diversity } = {}
+) {
   const scorer = {}
   const source = { ...data }
 
@@ -47,6 +56,8 @@ export function createScorer(data = {}, { schedule, refreshRatedDocs = () => und
   scorer.ownerId = source.owner_id
   scorer.ownerName = source.owner_name
   scorer.scorerId = source.scorer_id
+  // False for a scorer that doesn't read ratings (ILD); unknown means it does.
+  scorer.usesRatings = source.uses_ratings !== false
   scorer.communal = source.communal
   scorer.teams = source.teams || []
   scorer.colors = scaleToColors(scorer.scale)
@@ -230,6 +241,21 @@ export function createScorer(data = {}, { schedule, refreshRatedDocs = () => und
       query.depthOfRating = count
       scorer.depthOfRating = count
     }
+    const scoreByDiversity = (count = DEFAULT_NUM_DOCS) => {
+      if (typeof diversity !== "function") {
+        rejectScore(new Error("Diversity scoring is not available here"))
+        return
+      }
+      // No results at all stays "zsr", as for every scorer; one result, or none with a title,
+      // is just a query with nothing to measure.
+      if (docs.length === 0) return resolveScore(null)
+      const top = docs.slice(0, count).map((doc) => ({ id: doc.id, title: doc.title }))
+      Promise.resolve(diversity({ queryId: query.queryId, docs: top, count })).then(
+        // Nothing to measure (fewer than two results with a title) is no score, not 0.
+        (value) => (value === null || value === undefined ? rejectScore(0) : resolveScore(value)),
+        rejectScore
+      )
+    }
     const pass = () => resolveScore(100)
     const fail = () => rejectScore(0)
     const setScore = (score) => resolveScore(score)
@@ -269,6 +295,7 @@ export function createScorer(data = {}, { schedule, refreshRatedDocs = () => und
       "topRatings",
       "qOption",
       "recordDepthOfRanking",
+      "scoreByDiversity",
       "pass",
       "fail",
       "setScore",
@@ -302,6 +329,7 @@ export function createScorer(data = {}, { schedule, refreshRatedDocs = () => und
       topRatings,
       qOption,
       recordDepthOfRanking,
+      scoreByDiversity,
       pass,
       fail,
       setScore,

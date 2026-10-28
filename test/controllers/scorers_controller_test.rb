@@ -64,6 +64,45 @@ class ScorersControllerTest < ActionController::TestCase
         assert_equal scorer, assigns(:scorer)
       end
 
+      test 'shows no grade scale for a scorer that does not use ratings, only a note' do
+        scorer = scorers(:random_scorer)
+        scorer.update!(owner: user, code: 'scoreByDiversity(10);')
+
+        get :edit, params: { id: scorer.id }
+
+        assert_response :success
+        assert_select 'input[name="scorer[scale_list]"]', count: 0
+        assert_select 'input[name="scale_preset"]', count: 0
+        assert_select '[data-scorer-scale-target="scaleLabels"]', count: 0
+        assert_select '.alert', text: /no grade scale/
+      end
+
+      test 'shows the grade scale for a scorer that uses ratings' do
+        scorer = scorers(:random_scorer)
+        scorer.update!(owner: user, code: 'setScore(avgRating());')
+
+        get :edit, params: { id: scorer.id }
+
+        assert_response :success
+        assert_select 'input[name="scorer[scale_list]"]'
+        assert_select '.alert', text: /no grade scale/, count: 0
+      end
+
+      test 'saving a scorer without a grade scale keeps its scale' do
+        scorer = scorers(:random_scorer)
+        scorer.update!(owner: user, code: 'scoreByDiversity(10);', scale: [ 0, 1, 2, 3 ],
+                       scale_with_labels: { '0' => 'Poor', '3' => 'Perfect' })
+
+        put :update, params: { id: scorer.id, scorer: { name: 'ILD copy', code: 'scoreByDiversity(5);' } }
+
+        assert_response :see_other
+        scorer.reload
+
+        assert_equal 'ILD copy', scorer.name
+        assert_equal [ 0, 1, 2, 3 ], scorer.scale
+        assert_equal 'Poor', scorer.scale_with_labels['0']
+      end
+
       test 'renders saved scale labels and the label template the scale controller clones' do
         scorer = scorers(:random_scorer)
         scorer.update!(owner: user, scale: [ 0, 1 ], scale_with_labels: { '0' => 'Bad', '1' => 'Good' })

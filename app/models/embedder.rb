@@ -35,7 +35,10 @@ class Embedder < ApplicationRecord
   # The settings that change the vectors produced. The fingerprint covers exactly these,
   # and changing any of them re-vectorises the cases using this embedder. Name, key and
   # timeout don't change the output.
+  # `fingerprint` covers all of them (query vectors); `document_fingerprint` covers the ones
+  # that also apply to documents, which are sent without the instruction and template.
   VECTOR_SETTINGS = %w[provider service_url model dimensions truncation instruction input_template].freeze
+  DOCUMENT_VECTOR_SETTINGS = %w[provider service_url model dimensions truncation].freeze
 
   # Shown in the form and the API instead of the key itself.
   MASKED_API_KEY = '******'
@@ -61,6 +64,8 @@ class Embedder < ApplicationRecord
   # Deleting an embedder unlinks its cases; the vectors already stored on their
   # queries stay, and are recognisably stale by their fingerprint.
   has_many :cases, dependent: :nullify, inverse_of: :embedder
+  has_many :diversity_cases, class_name: 'Case', foreign_key: :diversity_embedder_id,
+                             dependent: :nullify, inverse_of: :diversity_embedder
 
   include ForUserScope
 
@@ -93,8 +98,8 @@ class Embedder < ApplicationRecord
   end
 
   # Vectors for these texts, in order. See EmbedderAdapters::Base#embed.
-  def embed texts, timeout: nil
-    adapter.embed(Array(texts), timeout: timeout)
+  def embed texts, timeout: nil, input_type: :query
+    adapter.embed(Array(texts), timeout: timeout, input_type: input_type)
   end
 
   # Embeds one text to see whether the provider, URL, model and key work. Nothing is saved.
@@ -123,6 +128,12 @@ class Embedder < ApplicationRecord
 
   # Identifies the exact text sent for a query, so a stored vector can be checked
   # against what would be sent now without calling the API.
+  # Like #fingerprint, for vectors of documents. A document is embedded without the
+  # instruction and input template, so editing those leaves its vector valid.
+  def document_fingerprint
+    Digest::SHA256.hexdigest(DOCUMENT_VECTOR_SETTINGS.map { |attribute| self[attribute].to_s }.to_json)[0, 16]
+  end
+
   def input_digest text
     Digest::SHA256.hexdigest(render_input(text))[0, 16]
   end

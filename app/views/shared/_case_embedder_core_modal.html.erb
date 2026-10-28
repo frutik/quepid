@@ -37,6 +37,48 @@
       No embedders are shared with you yet. Use "Create New Embedder" below to make one.
     </p>
   </div>
+
+  <%# Result diversity: measured on a snapshot with the embedder above. Reloads when this modal opens. %>
+  <section class="border-top mt-4 pt-3"
+           data-controller="case-diversity-core"
+           data-action="show.bs.modal@document->case-diversity-core#open"
+           data-case-diversity-core-id-value="<%= kase.id %>"
+           data-case-diversity-core-modal-id-value="caseEmbedderModal"
+           data-case-diversity-core-embedders-url-template-value="<%= api_case_embedders_path(case_id: '__CASE_ID__') %>"
+           data-case-diversity-core-snapshots-url-template-value="<%= api_case_snapshots_path(case_id: '__CASE_ID__') %>"
+           data-case-diversity-core-diversity-url-template-value="<%= api_case_snapshot_diversity_path(case_id: '__CASE_ID__', snapshot_id: '__SNAPSHOT_ID__') %>"
+           data-case-diversity-core-settings-url-template-value="<%= api_case_diversity_settings_path(case_id: '__CASE_ID__') %>">
+    <h6>Result diversity</h6>
+    <p class="text-muted small mb-2" data-case-diversity-core-target="notice" hidden></p>
+    <div data-case-diversity-core-target="panel" hidden>
+      <p class="text-muted small">
+        How different the top results of each query are from one another: the title of each result is embedded
+        and the mean pairwise cosine distance taken (0 = all alike). It is shown next to the snapshot's score
+        when you compare snapshots.
+      </p>
+      <div class="row g-2 align-items-end mb-2">
+        <div class="col-sm-7">
+          <label class="form-label small mb-1" for="caseDiversitySnapshot">Snapshot</label>
+          <select class="form-select form-select-sm" id="caseDiversitySnapshot"
+                  data-case-diversity-core-target="snapshotSelect"
+                  data-action="change->case-diversity-core#snapshotChanged"></select>
+        </div>
+        <div class="col-sm-3">
+          <label class="form-label small mb-1" for="caseDiversityDepth">Top results</label>
+          <input type="number" min="2" max="100" class="form-control form-control-sm" id="caseDiversityDepth"
+                 data-case-diversity-core-target="depthInput"
+                 data-action="change->case-diversity-core#saveDepth">
+        </div>
+        <div class="col-sm-2">
+          <button type="button" class="btn btn-sm btn-outline-primary w-100"
+                  data-case-diversity-core-target="computeButton"
+                  data-action="click->case-diversity-core#compute">Compute</button>
+        </div>
+      </div>
+      <div class="small mb-1">Embedded field: <code data-case-diversity-core-target="titleField"></code></div>
+      <div class="small text-muted" data-case-diversity-core-target="status" role="status"></div>
+    </div>
+  </section>
 <% end %>
 
 <%= render "shared/modal_shell", id: "caseEmbedderModal", title: safe_join(["Which embedder should vectorize this case's queries?", render("embedders/beta")]),

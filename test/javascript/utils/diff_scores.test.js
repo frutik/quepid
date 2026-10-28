@@ -38,6 +38,7 @@ describe("buildCaseDiffScores", () => {
       {
         name: "Baseline",
         version: 3,
+        diversity: null,
         score: {
           score: 0.75,
           maxScore: 1,
@@ -48,6 +49,7 @@ describe("buildCaseDiffScores", () => {
       {
         name: "Tuned",
         version: 4,
+        diversity: null,
         score: {
           score: 0.75,
           maxScore: 1,
@@ -76,5 +78,16 @@ describe("buildCaseDiffScores", () => {
 
   it("returns no read model when no query has diffs", () => {
     expect(buildCaseDiffScores([{ diffs: null }])).toEqual([])
+  })
+
+  it("carries each snapshot's diversity along with its score", () => {
+    const snapshot = { diversity: 0.4, diversityMeta: { status: "done" }, diversityStale: true }
+    const withDiversity = { ...searcher("Baseline", 3, { score: 0.5, allRated: true }), snapshot }
+    const without = searcher("Tuned", 4, { score: 1, allRated: true })
+
+    const [first, second] = buildCaseDiffScores([query([withDiversity, without])])
+
+    expect(first.diversity).toEqual({ value: 0.4, meta: { status: "done" }, stale: true })
+    expect(second.diversity).toBeNull()
   })
 })

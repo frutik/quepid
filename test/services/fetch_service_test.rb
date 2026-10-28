@@ -615,6 +615,90 @@ class FetchServiceTest < ActiveSupport::TestCase
       assert_in_delta(1.0, snapshot_query.reload.score)
     end
 
+    describe 'a scorer that scores by diversity' do
+      let(:embedder) { embedders(:openai_small) }
+
+      # One vector per distinct title: Star Wars and Casablanca are orthogonal.
+      let(:vectors) { { 'Star Wars' => [ 1.0, 0.0 ], 'Casablanca' => [ 0.0, 1.0 ] } }
+
+      def stub_embeddings
+        stub_request(:post, 'https://api.openai.com/v1/embeddings').to_return do |request|
+          inputs = JSON.parse(request.body)['input']
+          { status: 200, headers: { 'Content-Type' => 'application/json' },
+            body: { data: inputs.each_with_index.map { |text, i| { index: i, embedding: vectors.fetch(text, [ 0.5, 0.5 ]) + Array.new(510, 0.0) } } }.to_json }
+        end
+      end
+
+      def titled_docs titles
+        snapshot_query.snapshot_docs.destroy_all
+        titles.each_with_index do |title, index|
+          snapshot_query.snapshot_docs.create!(doc_id: "doc-#{title}", position: index + 1, fields: { title: title }.to_json)
+        end
+      end
+
+      before do
+        asnapshot.scorer.update!(code: File.read('db/scorers/ild@10.js'))
+        atry.update!(field_spec: 'id:id title:title')
+        acase.update!(embedder: embedder)
+        titled_docs([ 'Star Wars', 'Casablanca' ])
+      end
+
+      it 'embeds the top results\' titles and scores the query with their diversity' do
+        stub_embeddings
+        fetch_service = FetchService.new options
+        fetch_service.begin acase, atry
+
+        fetch_service.score_snapshot(asnapshot, atry, nil)
+
+        assert_in_delta(1.0, snapshot_query.reload.score)
+      end
+
+      it 'leaves the query unscored when the case has no embedder' do
+        acase.update!(embedder: nil)
+        fetch_service = FetchService.new options
+        fetch_service.begin acase, atry
+
+        fetch_service.score_snapshot(asnapshot, atry, nil)
+
+        assert_nil snapshot_query.reload.score
+      end
+
+      it 'leaves the query unscored when the title is the id' do
+        atry.update!(field_spec: 'id:id title:id *')
+        fetch_service = FetchService.new options
+        fetch_service.begin acase, atry
+
+        fetch_service.score_snapshot(asnapshot, atry, nil)
+
+        assert_nil snapshot_query.reload.score
+        assert_not_requested :post, 'https://api.openai.com/v1/embeddings'
+      end
+
+      it 'leaves the query unscored when the provider fails' do
+        stub_request(:post, 'https://api.openai.com/v1/embeddings').to_return(status: 500, body: 'down')
+        fetch_service = FetchService.new options
+        fetch_service.begin acase, atry
+
+        fetch_service.score_snapshot(asnapshot, atry, nil)
+
+        assert_nil snapshot_query.reload.score
+      end
+
+      it 'uses the case\'s diversity embedder when it has one' do
+        other = Embedder.create!(name: 'Other', provider: 'openai', service_url: 'https://api.openai.com',
+                                 model: 'text-embedding-3-large', api_key: 'sk-other', owner: users(:random))
+        acase.update!(diversity_embedder: other)
+        stub_embeddings
+        fetch_service = FetchService.new options
+        fetch_service.begin acase, atry
+
+        fetch_service.score_snapshot(asnapshot, atry, nil)
+
+        assert_requested(:post, 'https://api.openai.com/v1/embeddings', at_least_times: 1) { |request| 'text-embedding-3-large' == JSON.parse(request.body)['model'] }
+        assert_not_requested(:post, 'https://api.openai.com/v1/embeddings') { |request| 'text-embedding-3-small' == JSON.parse(request.body)['model'] }
+      end
+    end
+
     it 'leaves unscored queries out of the case average' do
       asnapshot.scorer.update!(code: 'fail()')
 

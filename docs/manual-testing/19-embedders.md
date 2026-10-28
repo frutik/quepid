@@ -69,3 +69,39 @@ For a local run, the Ollama container needs an embedding model: `docker exec oll
   - Step 6: rows show "vectorisation failed" (red); the tooltip has the provider's error (e.g. 401). Older vectors are kept.
   - Step 7: all queries are redone.
 
+### 19.5 Score a case by result diversity (ILD@10)
+
+- [ ] **Steps:**
+  1. Open a case whose try's field spec names a title, for example `id:id title:name`, and which has an embedder (19.3).
+  2. Open **Select scorer**, pick **ILD@10**.
+  3. Check the **Embedder for result diversity** dropdown appeared: the first entry is "The case's embedder (…)", then the embedders shared with you.
+  4. Pick a different embedder than the case's, and click **Select Scorer**.
+  5. Look at the case score and a few query scores. Hover or expand a query.
+  6. Switch to a normal scorer (AP@10) in the same dialog.
+  7. Take a snapshot while ILD@10 is selected, then open **Compare snapshots**.
+- **Expected:**
+  - Step 3: the dropdown shows only for ILD@10; for AP@10 it is hidden.
+  - Step 5: queries show a value between 0 and about 1 (0 = results all alike); the case score is their mean. Queries with fewer than two results show no score. After the first load, searching a query again is quick (cached vectors).
+  - Step 6: the dropdown disappears and the case is scored by relevance again; the diversity embedder choice is kept on the case.
+  - Step 7: the snapshot's scores are diversity values and compare against the live ones.
+- **Edge cases:**
+  - [ ] A case with no embedder: the dialog says to pick one, and **Select Scorer** stays disabled until you do.
+  - [ ] A try whose title is the id (`id:id title:id *`): queries show no score.
+  - [ ] A wrong API key on the diversity embedder: queries show no score and the error from the provider.
+  - [ ] An embedder you can't see (set by a teammate): the picker doesn't list it.
+
+### 19.6 Measure the diversity of an existing snapshot
+
+- [ ] **Steps:**
+  1. Open a case with an embedder (19.3) and a normal scorer. Take a snapshot with **Record document fields** ticked.
+  2. Open **Select embedder**. In **Result diversity**, check the snapshot is listed, the embedded field is the title, and the status reads "Not computed yet."
+  3. Click **Compute**.
+  4. Close the modal and compare the snapshot with the live results.
+  5. Change **Top results** to `5` and reopen the section.
+- **Expected:**
+  - Step 3: "Computing diversity…" and then "Diversity@10: 0.xxx · N queries scored".
+  - Step 4: "diversity 0.xxx" shows under the snapshot's score in the header; hovering a query's snapshot score shows its own value.
+  - Step 5: the status says the value is outdated; computing again gives a Diversity@5.
+- **Edge cases:**
+  - [ ] A snapshot taken without Record document fields — "This snapshot has no document fields."
+  - [ ] A depth of `1` or `101` — the status shows the server's error.

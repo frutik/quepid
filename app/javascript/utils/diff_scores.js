@@ -30,9 +30,17 @@ export function buildCaseDiffScores(queries, maxScore = 1) {
     const score = validScores > 0 ? totalScore / validScores : "--"
     const effectiveMaxScore = maxScore || 1
 
+    const snapshot = templateSearcher.snapshot
     return {
       name: templateSearcher.name(),
       version: templateSearcher.version(),
+      diversity: snapshot
+        ? {
+            value: snapshot.diversity ?? null,
+            meta: snapshot.diversityMeta ?? null,
+            stale: Boolean(snapshot.diversityStale)
+          }
+        : null,
       score: {
         score,
         maxScore: effectiveMaxScore,

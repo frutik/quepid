@@ -19,6 +19,24 @@ class JavascriptScorerTest < ActiveSupport::TestCase
     JavascriptScorer.new
   end
 
+  describe 'ild@10' do
+    let(:ild_code) { File.read('db/scorers/ild@10.js') }
+
+    test 'scores by the diversity it is given, rounded like any score' do
+      score = javascript_scorer.score([ { id: 1 }, { id: 2 } ], [], ild_code, diversity: 0.87654)
+
+      assert_in_delta 0.88, score
+    end
+
+    test 'has no score when there was nothing to measure' do
+      error = assert_raises(JavascriptScorer::ScoreError) do
+        javascript_scorer.score([ { id: 1 } ], [], ild_code, diversity: nil)
+      end
+
+      assert_equal '0', error.message
+    end
+  end
+
   describe 'p@10' do
     describe 'when score data is invalid' do
       let(:the_case) { cases(:case_without_score) }

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_24_233000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_28_100400) do
   create_table "active_storage_attachments", charset: "utf8mb4", collation: "utf8mb4_bin", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -251,6 +251,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_24_233000) do
     t.integer "book_id"
     t.string "case_name", limit: 191
     t.datetime "created_at", precision: nil, null: false
+    t.integer "diversity_depth"
+    t.bigint "diversity_embedder_id"
     t.bigint "embedder_id"
     t.integer "last_try_number"
     t.boolean "nightly"
@@ -260,6 +262,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_24_233000) do
     t.integer "scorer_id"
     t.datetime "updated_at", precision: nil, null: false
     t.index ["book_id"], name: "index_cases_book_id"
+    t.index ["diversity_embedder_id"], name: "index_cases_on_diversity_embedder_id"
     t.index ["embedder_id"], name: "index_cases_on_embedder_id"
     t.index ["owner_id", "archived"], name: "idx_owner_archived"
     t.index ["owner_id"], name: "index_cases_on_owner_id"
@@ -272,6 +275,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_24_233000) do
     t.datetime "updated_at", precision: nil, null: false
     t.float "value"
     t.index ["try_id"], name: "try_id"
+  end
+
+  create_table "document_embeddings", charset: "utf8mb4", collation: "utf8mb4_bin", force: :cascade do |t|
+    t.integer "case_id", null: false
+    t.datetime "created_at", null: false
+    t.integer "dimensions", null: false
+    t.string "doc_id", limit: 500, null: false
+    t.string "fingerprint", limit: 64, null: false
+    t.string "text_digest", limit: 64, null: false
+    t.datetime "updated_at", null: false
+    t.binary "vector", null: false
+    t.index ["case_id", "doc_id", "fingerprint"], name: "index_document_embeddings_on_case_doc_fingerprint", unique: true
   end
 
   create_table "embedders", charset: "utf8mb4", collation: "utf8mb4_bin", force: :cascade do |t|
@@ -617,6 +632,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_24_233000) do
 
   create_table "snapshot_queries", id: :integer, charset: "latin1", force: :cascade do |t|
     t.boolean "all_rated"
+    t.float "diversity"
     t.text "error"
     t.integer "number_of_results"
     t.integer "query_id"
@@ -630,6 +646,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_24_233000) do
   create_table "snapshots", id: :integer, charset: "latin1", force: :cascade do |t|
     t.integer "case_id"
     t.datetime "created_at", precision: nil
+    t.float "diversity"
+    t.json "diversity_meta"
     t.string "name", limit: 250
     t.bigint "scorer_id"
     t.bigint "try_id"

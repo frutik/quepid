@@ -796,3 +796,20 @@ li.annotation {
   max-width: 640px;
   max-height: 640px;
 }
+
+/*
+ * A scorer that never reads ratings (ILD) leaves the rating controls on the page but locked:
+ * dimmed, not clickable, and with a tooltip on their wrapper saying why (utils/ratings_lock.js,
+ * which puts this class on <body> and also disables the buttons for the keyboard).
+ * `pointer-events: none` on the control itself lets the hover reach the wrapper's tooltip.
+ */
+.scorer-no-ratings .col-ratings,
+.scorer-no-ratings [data-slot="missingDocuments"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.scorer-no-ratings .col-ratings .single-rating,
+.scorer-no-ratings [data-slot="missingDocuments"] {
+  pointer-events: none;
+}

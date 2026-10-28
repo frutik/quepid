@@ -1,0 +1,25 @@
+{
+  "description": "Which field is the id and which the title, checked against both splainer-search's fieldSpecSvc (test/javascript/field_spec_parity.test.js) and its Ruby port FieldSpec (test/models/field_spec_test.rb), so the text embedded per document is the title the browser shows.",
+  "cases": [
+    { "name": "default spec", "spec": "id:id title:id *", "id": "id", "title": "id" },
+    { "name": "empty spec", "spec": "", "id": "id", "title": "id" },
+    { "name": "blank spec", "spec": "   ", "id": "id", "title": "id" },
+    { "name": "star only", "spec": "*", "id": "id", "title": "id" },
+    { "name": "star first, then more", "spec": "* title:name", "id": "id", "title": "id" },
+    { "name": "explicit title", "spec": "id:_id title:name", "id": "_id", "title": "name" },
+    { "name": "id only, no title", "spec": "id:_id", "id": "_id", "title": "_id" },
+    { "name": "explicit title, id missing", "spec": "title:name", "id": "id", "title": "name" },
+    { "name": "bare field is the title", "spec": "id:_id name overview", "id": "_id", "title": "name" },
+    { "name": "bare field before an explicit title wins", "spec": "name title:other", "id": "id", "title": "name" },
+    { "name": "first explicit title wins", "spec": "title:one title:two", "id": "id", "title": "one" },
+    { "name": "bare field after an explicit title is a sub", "spec": "title:name overview", "id": "id", "title": "name" },
+    { "name": "plus joins fields", "spec": "id:_id+title:name+overview", "id": "_id", "title": "name" },
+    { "name": "commas separate", "spec": "id:_id,title:name,overview", "id": "_id", "title": "name" },
+    { "name": "several types on one field", "spec": "id:_id title:media:image_url", "id": "_id", "title": "image_url" },
+    { "name": "dotted name", "spec": "id:_id title:product.name", "id": "_id", "title": "product.name" },
+    { "name": "JSON definition of the title", "spec": "id:_id {\"name\":\"label\",\"type\":\"title\"}", "id": "_id", "title": "label" },
+    { "name": "JSON definition with options", "spec": "{\"name\":\"photo\",\"type\":\"thumb\",\"prefix\":\"x\"} title:name", "id": "id", "title": "name" },
+    { "name": "only sub and thumb fields", "spec": "id:_id thumb:img sub:overview", "id": "_id", "title": "_id" },
+    { "name": "title and id are the same field", "spec": "id:_id title:_id", "id": "_id", "title": "_id" }
+  ]
+}
