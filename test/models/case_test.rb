@@ -279,6 +279,64 @@ class CaseTest < ActiveSupport::TestCase
     end
   end
 
+  describe 'diversity depth' do
+    let(:the_case) { cases(:one) }
+
+    it 'defaults to 10 and accepts 2 to 100' do
+      assert_nil the_case.diversity_depth
+      assert_equal 10, the_case.effective_diversity_depth
+
+      the_case.diversity_depth = 25
+
+      assert_predicate the_case, :valid?
+      assert_equal 25, the_case.effective_diversity_depth
+    end
+
+    it 'rejects a depth outside 2 to 100' do
+      [ 1, 101, 0, -3 ].each do |depth|
+        the_case.diversity_depth = depth
+
+        assert_not the_case.valid?, "#{depth} should be rejected"
+      end
+    end
+  end
+
+  describe 'diversity embedder' do
+    let(:the_case) { cases(:random_case) }
+
+    it 'is the case\'s own embedder unless one is set' do
+      the_case.update!(embedder: embedders(:openai_small))
+
+      assert_equal embedders(:openai_small), the_case.effective_diversity_embedder
+
+      the_case.update!(diversity_embedder: embedders(:private_ollama))
+
+      assert_equal embedders(:private_ollama), the_case.effective_diversity_embedder
+    end
+
+    it 'is cleared when its embedder is deleted' do
+      the_case.update!(diversity_embedder: embedders(:openai_small))
+
+      embedders(:openai_small).destroy
+
+      assert_nil the_case.reload.diversity_embedder_id
+    end
+
+    it 'is kept by a clone only if the user can see it' do
+      the_case.update!(diversity_embedder: embedders(:private_ollama))
+      hidden = Case.new(case_name: 'clone')
+      hidden.clone_case the_case, users(:random), try: the_case.tries.latest
+
+      assert_nil hidden.diversity_embedder_id
+
+      the_case.update!(diversity_embedder: embedders(:openai_small))
+      visible = Case.new(case_name: 'clone 2')
+      visible.clone_case the_case, users(:random), try: the_case.tries.latest
+
+      assert_equal embedders(:openai_small), visible.diversity_embedder
+    end
+  end
+
   describe 'destroy' do
     let(:user)        { users(:random) }
     let(:the_case)    { cases(:random_case) }
@@ -294,6 +352,14 @@ class CaseTest < ActiveSupport::TestCase
         end
       end
       assert_not user.destroyed?
+    end
+
+    it 'destroys the document embeddings' do
+      DocumentEmbedding.store(case_id: the_case.id, fingerprint: 'fp', rows: [ { doc_id: 'a', text_digest: 'd', vector: [ 1.0 ] } ])
+
+      assert_difference 'DocumentEmbedding.count', -1 do
+        the_case.really_destroy
+      end
     end
 
     it 'handles destroyed queries' do

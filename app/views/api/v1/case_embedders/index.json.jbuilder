@@ -14,6 +14,11 @@ else
   json.embedder nil
 end
 
+# The embedder the ILD scorer uses for result documents; blank means the case's own.
+json.diversity_embedder_id     @case.diversity_embedder_id
+json.diversity_depth           @case.diversity_depth
+json.effective_diversity_depth @case.effective_diversity_depth
+
 json.embedders @embedders do |embedder|
   json.embedder_id embedder.id
   json.name        embedder.name

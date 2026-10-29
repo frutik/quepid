@@ -1,5 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 import { createBsPopover } from "utils/bs_popover"
+import { lockIfRatingsUnused } from "utils/ratings_lock"
 
 // Rating-scale popover for search results, "Score All", and the Document
 // Finder. Content here is plain DOM built from the scale value — the actual
@@ -14,6 +15,8 @@ export default class extends Controller {
   }
 
   connect() {
+    // Rendered after the scorer was chosen: a scorer that never reads ratings locks it.
+    lockIfRatingsUnused(this.element)
     this.handle = createBsPopover(this.element, {
       trigger: "outside-click",
       placement: this.placementValue,

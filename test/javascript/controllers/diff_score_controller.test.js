@@ -49,4 +49,25 @@ describe("DiffScoreController", () => {
 
     expect(controller.valueTarget.textContent).toBe("?")
   })
+
+  it("shows the query's diversity as a tooltip, and clears it when there is none", () => {
+    const element = document.createElement("div")
+    element.innerHTML = '<span data-diff-score-target="value"></span>'
+    let searcher = { score: { score: 0.5 }, diversity: 0.4123 }
+    const controller = buildControllerFixture(DiffScoreController, {
+      element,
+      targets: { value: element.querySelector("span") },
+      values: { queryId: "1", index: 0 },
+      overrides: { store: { query: () => ({ diffs: { searchers: [searcher] } }) } }
+    })
+
+    controller.render()
+
+    expect(element.title).toBe("Diversity: 0.412")
+
+    searcher = { score: { score: 0.5 }, diversity: null }
+    controller.render()
+
+    expect(element.hasAttribute("title")).toBe(false)
+  })
 })

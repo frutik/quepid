@@ -1,6 +1,6 @@
 import { CORE_EVENTS } from "utils/core_events"
 import CoreModalControllerBase from "controllers/core_modal_controller_base"
-import { putJson } from "api/json"
+import { getJson, putJson } from "api/json"
 import { apiFetch } from "api/fetch"
 import { serverMessage } from "utils/error_message"
 import { getQuepidRootUrl } from "utils/quepid_root"
@@ -14,6 +14,11 @@ import { getQuepidRootUrl } from "utils/quepid_root"
  *
  * When the case's current scorer is missing from the accessible lists, it
  * stays selected and the warning banner shows.
+ *
+ * A scorer that scores by result diversity (ILD, `uses_diversity`) needs an embedder to embed
+ * the results' titles. It is chosen here, in a dropdown that appears for such a scorer, and
+ * saved on the case with the scorer (`diversity_embedder_id`): the scorer is shared, the
+ * embedder and its API key are not. Blank means the case's own embedder.
  */
 export default class extends CoreModalControllerBase {
   static targets = [
@@ -27,12 +32,16 @@ export default class extends CoreModalControllerBase {
     "customList",
     "customEmpty",
     "createButton",
-    "submitButton"
+    "submitButton",
+    "diversityPanel",
+    "diversityEmbedder",
+    "diversityNotice"
   ]
 
   static values = {
     scorersUrl: String,
     caseScorerUrlTemplate: String,
+    embeddersUrlTemplate: String,
     communalScorersOnly: Boolean
   }
 
@@ -51,6 +60,7 @@ export default class extends CoreModalControllerBase {
     this.initialScorerName = currentScorerName || ""
     this.userScorers = []
     this.communalScorers = []
+    this.embedderState = null
 
     this.clearAlert()
     this._refreshCreateVisibility()
@@ -63,6 +73,7 @@ export default class extends CoreModalControllerBase {
     this.selectedScorer = pool.find((s) => Number(s.scorer_id) === scorerId) || null
     this._refreshListActive()
     this._refreshWarning()
+    void this._refreshDiversityPanel()
     // Picking a real scorer must re-enable submit even when the modal opened
     // with an inaccessible placeholder selected (which leaves submit
     // disabled) or nothing selected at all — but must NOT clobber a submit
@@ -93,7 +104,7 @@ export default class extends CoreModalControllerBase {
       const url = this.caseScorerUrlTemplateValue
         .replaceAll("__CASE_ID__", caseId)
         .replaceAll("__SCORER_ID__", String(scorerId))
-      await putJson(url, {})
+      await putJson(url, this._scorerBody(selectedScorer))
 
       document.dispatchEvent(
         new CustomEvent(CORE_EVENTS.PICK_SCORER_SELECTED, {
@@ -145,6 +156,7 @@ export default class extends CoreModalControllerBase {
       this._refreshListActive()
       this._refreshWarning()
       this.setSubmitting(false)
+      void this._refreshDiversityPanel()
     } catch (error) {
       console.error("pick-scorer-core: load scorers failed", error)
       this.showAlert("Unable to load scorers. Please try again.", "danger")
@@ -202,6 +214,81 @@ export default class extends CoreModalControllerBase {
       .some((s) => Number(s.scorer_id) === this.initialScorerId)
   }
 
+  // The request body: only a diversity scorer carries an embedder, and none (0) clears it.
+  _scorerBody(scorer) {
+    if (!scorer?.uses_diversity || !this.hasDiversityEmbedderTarget) return {}
+
+    return { diversity_embedder_id: Number(this.diversityEmbedderTarget.value) || 0 }
+  }
+
+  // Shows the embedder dropdown for a diversity scorer, filled from the case's embedders.
+  async _refreshDiversityPanel() {
+    const wanted = Boolean(this.selectedScorer?.uses_diversity)
+    this.toggleVisible("diversityPanel", wanted)
+    if (!wanted || !this.hasDiversityEmbedderTarget || !this.currentCaseId)
+      return this._refreshSubmitEnabled()
+
+    if (!this.embedderState) {
+      const generation = this.openGeneration
+      try {
+        const url = this.embeddersUrlTemplateValue.replaceAll("__CASE_ID__", this.currentCaseId)
+        const state = await getJson(url)
+        if (generation !== this.openGeneration) return
+        this.embedderState = state
+        this._renderDiversityEmbedders(state)
+      } catch (error) {
+        if (generation !== this.openGeneration) return
+        this.showAlert(serverMessage(error, "Unable to load embedders."), "danger")
+      }
+    }
+    this._refreshSubmitEnabled()
+  }
+
+  _renderDiversityEmbedders(state) {
+    const caseEmbedder = state.embedder
+    const options = [
+      {
+        value: "",
+        label: caseEmbedder ? `The case's embedder (${caseEmbedder.name})` : "Choose an embedder…"
+      },
+      ...(state.embedders || []).map((embedder) => ({
+        value: String(embedder.embedder_id),
+        label: `${embedder.name} · ${embedder.model}`
+      }))
+    ]
+    this.diversityEmbedderTarget.replaceChildren(
+      ...options.map(({ value, label }) => {
+        const option = document.createElement("option")
+        option.value = value
+        option.textContent = label
+        return option
+      })
+    )
+    this.diversityEmbedderTarget.value = state.diversity_embedder_id
+      ? String(state.diversity_embedder_id)
+      : ""
+  }
+
+  diversityEmbedderChanged() {
+    this._refreshSubmitEnabled()
+  }
+
+  // A diversity scorer is no use without an embedder: the case's own, or one picked here.
+  _diversityEmbedderMissing() {
+    if (!this.selectedScorer?.uses_diversity || !this.hasDiversityEmbedderTarget) return false
+    if (!this.embedderState) return true
+
+    const picked = this.diversityEmbedderTarget.value
+    const missing = !picked && !this.embedderState.embedder_id
+    if (this.hasDiversityNoticeTarget) {
+      this.diversityNoticeTarget.textContent = missing
+        ? "This case has no embedder. Pick one here, or no embedders are shared with you yet."
+        : ""
+      this.toggleVisible("diversityNotice", missing)
+    }
+    return missing
+  }
+
   _refreshCreateVisibility() {
     this.toggleVisible("createButton", !this.communalScorersOnlyValue)
   }
@@ -213,7 +300,10 @@ export default class extends CoreModalControllerBase {
 
   _refreshSubmitEnabled() {
     this.setButtonsDisabled(
-      this._isSubmitting || !this.selectedScorer || this.selectedScorer.inaccessible,
+      this._isSubmitting ||
+        !this.selectedScorer ||
+        this.selectedScorer.inaccessible ||
+        this._diversityEmbedderMissing(),
       ["submitButton"]
     )
   }

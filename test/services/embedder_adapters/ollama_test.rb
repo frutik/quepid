@@ -22,6 +22,21 @@ module EmbedderAdapters
       assert_requested stub
     end
 
+    test 'sends documents without the instruction' do
+      stub = stub_request(:post, 'http://ollama:11434/api/embed')
+        .with(body: { model: 'qwen3-embedding:0.6b', input: [ 'Star Wars' ], truncate: true })
+        .to_return(status: 200, headers: { 'Content-Type' => 'application/json' },
+                   body: { embeddings: [ [ 0.1, 0.2 ] ] }.to_json)
+
+      embedder.embed([ 'Star Wars' ], input_type: :document)
+
+      assert_requested stub
+    end
+
+    test 'rejects an unknown input type' do
+      assert_raises(ArgumentError) { embedder.embed([ 'star wars' ], input_type: :image) }
+    end
+
     test 'native truncation sends dimensions' do
       embedder.assign_attributes(truncation: 'native', dimensions: 2)
       stub = stub_request(:post, 'http://ollama:11434/api/embed')

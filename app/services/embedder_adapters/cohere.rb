@@ -2,7 +2,7 @@
 
 module EmbedderAdapters
   # Cohere's POST /v2/embed. Inputs go in `texts` (at most 96 a request), Cohere asks what
-  # they are for -- these are always search queries -- and the vectors come back under
+  # they are for (a search query or a search document) and the vectors come back under
   # embeddings.float, in input order.
   class Cohere < Base
     private
@@ -12,7 +12,7 @@ module EmbedderAdapters
     end
 
     def request_body inputs
-      body = { model: embedder.model, texts: inputs, input_type: 'search_query', embedding_types: [ 'float' ] }
+      body = { model: embedder.model, texts: inputs, input_type: "search_#{input_type}", embedding_types: [ 'float' ] }
       body[:output_dimension] = requested_dimensions if requested_dimensions
       body
     end

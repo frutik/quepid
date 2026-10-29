@@ -6,6 +6,7 @@
 #
 #  id                :integer          not null, primary key
 #  all_rated         :boolean
+#  diversity         :float(24)
 #  error             :text(65535)
 #  number_of_results :integer
 #  response_status   :integer

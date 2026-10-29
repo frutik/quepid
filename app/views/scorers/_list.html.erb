@@ -20,9 +20,14 @@
               <td><%= scorer.name %></td>
               <td><%= scorer.communal? ? 'Communal' : 'Custom' %></td>
               <td>
-                <div>
-                  <%= truncate(scorer.scale.to_s, length: 300) %>
-                </div>
+                <% if scorer.uses_ratings? %>
+                  <div>
+                    <%= truncate(scorer.scale.to_s, length: 300) %>
+                  </div>
+                <% else %>
+                  <%# Stored, but never used: the scorer doesn't read ratings. %>
+                  <span class="text-muted" title="This scorer doesn't use ratings, so it has no grade scale">Not used</span>
+                <% end %>
               </td>
               <td><%= scorer.owner&.fullname || 'System' %></td>
               <td class="text-end">

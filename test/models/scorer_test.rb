@@ -104,4 +104,63 @@ class ScorerTest < ActiveSupport::TestCase
       assert scorers.exclude?(scorers(:random_scorer))
     end
   end
+
+  describe 'result diversity' do
+    test 'a scorer that calls scoreByDiversity uses diversity, and measures that many results' do
+      scorer = Scorer.new(name: 'ILD', code: "// ILD\nscoreByDiversity(5);")
+
+      assert_predicate scorer, :uses_diversity?
+      assert_equal 5, scorer.diversity_depth
+    end
+
+    test 'measures ten results unless the call says otherwise' do
+      assert_equal 10, Scorer.new(name: 'ILD', code: 'scoreByDiversity();').diversity_depth
+    end
+
+    test 'other scorers do not use diversity' do
+      assert_not Scorer.new(name: 'AP', code: 'setScore(avgRating());').uses_diversity?
+      assert_not Scorer.new(name: 'None').uses_diversity?
+    end
+
+    test 'a pure diversity scorer does not read ratings; every other scorer does' do
+      assert_not Scorer.new(name: 'ILD', code: 'scoreByDiversity(10);').uses_ratings?
+      assert_predicate Scorer.new(name: 'AP', code: 'setScore(avgRating());'), :uses_ratings?
+      assert_predicate Scorer.new(name: 'None'), :uses_ratings?
+    end
+
+    test 'scoreByExpectedDiversity is EILD: diversity scoring that reads ratings' do
+      scorer = Scorer.new(name: 'EILD', code: 'scoreByExpectedDiversity(7);')
+
+      assert_predicate scorer, :uses_diversity?
+      assert_equal :eild, scorer.diversity_metric
+      assert_predicate scorer, :uses_ratings?
+      assert_equal 7, scorer.diversity_depth
+    end
+
+    test 'scoreByDiversity is ILD' do
+      assert_equal :ild, Scorer.new(name: 'ILD', code: 'scoreByDiversity(10);').diversity_metric
+    end
+
+    test 'the default EILD@10 scorer is picked up from its file' do
+      scorer = Scorer.new(name: 'EILD@10', code: Rails.root.join('db/scorers/eild@10.js').read)
+
+      assert_predicate scorer, :uses_diversity?
+      assert_equal :eild, scorer.diversity_metric
+      assert_equal 10, scorer.diversity_depth
+    end
+
+    test 'a diversity scorer that also reads ratings keeps the rating UI' do
+      code = "const best = topRatings(3);\nscoreByDiversity(10);"
+
+      assert_predicate Scorer.new(name: 'EILD', code: code), :uses_ratings?
+      assert_predicate Scorer.new(name: 'EILD', code: 'if (hasDocRating(0)) scoreByDiversity(5);'), :uses_ratings?
+    end
+
+    test 'the default ILD@10 scorer is seeded by the migration' do
+      code = Rails.root.join('db/scorers/ild@10.js').read
+
+      assert_predicate Scorer.new(name: 'ILD@10', code: code), :uses_diversity?
+      assert_equal 10, Scorer.new(name: 'ILD@10', code: code).diversity_depth
+    end
+  end
 end

@@ -23,6 +23,17 @@ module EmbedderAdapters
       assert_requested stub
     end
 
+    test 'marks texts as search documents when embedding documents' do
+      stub = stub_request(:post, URL)
+        .with(body: { model: 'embed-v4.0', texts: [ 'Star Wars' ], input_type: 'search_document', embedding_types: [ 'float' ] })
+        .to_return(status: 200, headers: { 'Content-Type' => 'application/json' },
+                   body: { embeddings: { float: [ [ 0.1, 0.2 ] ] } }.to_json)
+
+      embedder.embed([ 'Star Wars' ], input_type: :document)
+
+      assert_requested stub
+    end
+
     test 'native truncation sends output_dimension' do
       embedder.assign_attributes(truncation: 'native', dimensions: 2)
       stub = stub_request(:post, URL)

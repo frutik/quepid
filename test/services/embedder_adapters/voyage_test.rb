@@ -19,5 +19,18 @@ module EmbedderAdapters
       assert_requested stub
       assert_equal 256, vectors.first.size
     end
+
+    test 'marks inputs as documents and skips the instruction when embedding documents' do
+      embedder = Embedder.new(name: 'Test', provider: 'voyage', service_url: 'https://api.voyageai.com',
+                              model: 'voyage-3.5', api_key: 'pa-test', input_template: 'Q: {query}', timeout: 30)
+      stub = stub_request(:post, 'https://api.voyageai.com/v1/embeddings')
+        .with(body: { model: 'voyage-3.5', input: [ 'Star Wars' ], input_type: 'document' })
+        .to_return(status: 200, headers: { 'Content-Type' => 'application/json' },
+                   body: { data: [ { index: 0, embedding: [ 0.1, 0.2 ] } ] }.to_json)
+
+      embedder.embed([ 'Star Wars' ], input_type: :document)
+
+      assert_requested stub
+    end
   end
 end

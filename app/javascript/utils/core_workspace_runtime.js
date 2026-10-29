@@ -1,4 +1,5 @@
 import { createScorerCatalog } from "utils/scorer_catalog"
+import { postJson } from "api/json"
 import { createMapperSearchRuntime } from "utils/mapper_search_runtime"
 import { createSearchEndpointRuntime } from "utils/search_endpoint_runtime"
 import { createSettingsCatalog } from "utils/settings_catalog_runtime"
@@ -42,7 +43,14 @@ export function createCoreWorkspaceRuntime({
     scorerOptions: {
       schedule: framework.schedule,
       refreshRatedDocs: (queryId, count) =>
-        liveQuery.queryCapabilities.refreshRatedDocs(queryId, count)
+        liveQuery.queryCapabilities.refreshRatedDocs(queryId, count),
+      // The ILD and EILD scorers' scores are computed on the server, which embeds the titles.
+      diversity: ({ docs, count, metric }) =>
+        postJson(`api/cases/${navigationRuntime.getCaseNo()}/diversity/score`, {
+          docs,
+          count,
+          metric
+        }).then((response) => response?.score ?? null)
     }
   })
   const liveQuery = createLiveQueryRuntimeOwner({

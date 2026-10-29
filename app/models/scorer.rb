@@ -61,6 +61,37 @@ class Scorer < ApplicationRecord
     find_by(name: Rails.application.config.quepid_default_scorer)
   end
 
+  # Code that calls one of these scores a query by how different its results are from one another
+  # (ILD), or the same weighted by rank and relevance (EILD). Either needs an embedder on the
+  # case: the scorer picker asks for one.
+  DIVERSITY_HELPER = 'scoreByDiversity'
+  EXPECTED_DIVERSITY_HELPER = 'scoreByExpectedDiversity'
+  DIVERSITY_HELPERS = [ DIVERSITY_HELPER, EXPECTED_DIVERSITY_HELPER ].freeze
+
+  def uses_diversity?
+    DIVERSITY_HELPERS.any? { |helper| code.to_s.include?(helper) }
+  end
+
+  # :eild weights each pair of results by rank and relevance, so it reads ratings; :ild doesn't.
+  def diversity_metric
+    code.to_s.include?(EXPECTED_DIVERSITY_HELPER) ? :eild : :ild
+  end
+
+  # Helpers that read ratings. A scorer that scores only by diversity and calls none of them
+  # doesn't need documents rated, so the UI must not nag about unrated results.
+  RATING_HELPERS = /\b(avgRating|avgRating100|docRating|hasDocRating|topRatings|eachDocWithRating|eachDocWithRatingEqualTo|eachRatedDoc|editDistanceFromBest|bestDocs|ratedDocAt)\b/
+
+  # Every scorer reads ratings except a pure ILD one. EILD weights results by their relevance,
+  # which is their rating.
+  def uses_ratings?
+    !uses_diversity? || :eild == diversity_metric || RATING_HELPERS.match?(code.to_s)
+  end
+
+  # How many top results the scorer measures: the argument of its diversity call.
+  def diversity_depth
+    (code.to_s[/(?:#{DIVERSITY_HELPERS.join('|')})\(\s*(\d+)\s*\)/o, 1] || 10).to_i
+  end
+
   after_initialize do |scorer|
     scorer.scale      = [] if scorer.scale.blank?
 

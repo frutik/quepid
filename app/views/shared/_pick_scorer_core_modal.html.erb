@@ -29,6 +29,19 @@
       None exist. Use "Create New Scorer" below to make one.
     </p>
   </div>
+
+  <%# Only for a scorer that scores by result diversity (ILD): which embedder embeds the results' titles. %>
+  <div class="border-top mt-3 pt-3 d-none" data-pick-scorer-core-target="diversityPanel">
+    <label class="form-label fw-semibold" for="pickScorerDiversityEmbedder">Embedder for result diversity</label>
+    <select class="form-select" id="pickScorerDiversityEmbedder"
+            data-pick-scorer-core-target="diversityEmbedder"
+            data-action="change->pick-scorer-core#diversityEmbedderChanged"></select>
+    <p class="text-muted small mt-1 mb-0">
+      The title of each of the first results is embedded with this, and the score is how different they are from
+      one another (0 = all alike). It doesn't have to be the embedder used for the queries.
+    </p>
+    <p class="text-danger small d-none mt-1 mb-0" data-pick-scorer-core-target="diversityNotice"></p>
+  </div>
 <% end %>
 
 <%= render "shared/modal_shell", id: "pickScorerModal", title: "How would you like to score this case?",
@@ -38,6 +51,7 @@
                                    action: "show.bs.modal->pick-scorer-core#open",
                                    pick_scorer_core_scorers_url_value: scorers_catalog_path,
                                    pick_scorer_core_case_scorer_url_template_value: api_case_scorer_path(case_id: "__CASE_ID__", id: "__SCORER_ID__"),
+                                   pick_scorer_core_embedders_url_template_value: api_case_embedders_path(case_id: "__CASE_ID__"),
                                    pick_scorer_core_communal_scorers_only_value: Rails.application.config.communal_scorers_only
                                  },
                                  title_data: { pick_scorer_core_target: "title" },

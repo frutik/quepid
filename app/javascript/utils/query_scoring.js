@@ -13,7 +13,8 @@ export function scoreQuery({ query, docs, ratingsStore, scorer, depthOfRating })
   const maxScore = scorer.maxScore() || 1
 
   return Promise.resolve(scorePromise).then((score) => {
-    const docsToCheck = query.docs.slice(0, depthOfRating)
+    // A scorer that never reads ratings (ILD) has no unrated results to report.
+    const docsToCheck = scorer.usesRatings === false ? [] : query.docs.slice(0, depthOfRating)
     let allRated = true
     let countMissingRatings = 0
 

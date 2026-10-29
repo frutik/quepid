@@ -66,6 +66,7 @@ export class QueryDocumentsStore extends EventTarget {
     this._caseDiffs = searchers.map((searcher) => ({
       name: searcher.name || "Snapshot",
       version: searcher.version ?? null,
+      diversity: searcher.diversity ?? null,
       score: searcher.score || { score: "?", allRated: false }
     }))
     this.dispatchEvent(new CustomEvent("change", { detail: this.changeDetail() }))
@@ -207,6 +208,7 @@ function snapshotDiffs(diffs, state = {}) {
       version: searcher.version ?? null,
       inError: Boolean(searcher.inError),
       searchError: searcher.searchError || "",
+      diversity: searcher.diversity ?? null,
       score: searcher.score || { score: "?", allRated: false },
       docs: (searcher.docs || []).map((doc) =>
         snapshotDocument(doc, {

@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { getJson } from "api/json"
-import { createScorerCatalog } from "utils/scorer_catalog"
+import { createScorerCatalog, NO_RATINGS_CLASS } from "utils/scorer_catalog"
 
 vi.mock("api/json", () => ({ getJson: vi.fn() }))
 
 describe("scorer catalog", () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    document.body.classList.remove(NO_RATINGS_CLASS)
+  })
 
   it("starts with a default built from the shared runtime", () => {
     const catalog = createScorerCatalog()
@@ -52,5 +55,46 @@ describe("scorer catalog", () => {
 
     await expect(catalog.getDefault().score({ ratedDocs: [] }, 1, [], [])).resolves.toBe(5)
     expect(schedule).toHaveBeenCalledOnce()
+  })
+
+  describe("rating controls", () => {
+    const hidden = () => document.body.classList.contains(NO_RATINGS_CLASS)
+
+    it("hides them while the scorer is one that never reads ratings", async () => {
+      getJson.mockResolvedValue({ default: { scorer_id: 8, name: "ILD@10", uses_ratings: false } })
+      const catalog = createScorerCatalog()
+
+      await catalog.bootstrap(42)
+
+      expect(hidden()).toBe(true)
+    })
+
+    it("shows them again when an ordinary scorer is selected", async () => {
+      const catalog = createScorerCatalog()
+      await catalog.select({ scorer_id: 8, name: "ILD@10", uses_ratings: false })
+      expect(hidden()).toBe(true)
+
+      await catalog.select({ scorer_id: 1, name: "AP@10", uses_ratings: true })
+
+      expect(hidden()).toBe(false)
+    })
+
+    it("keeps them for a scorer that doesn't say", async () => {
+      const catalog = createScorerCatalog()
+
+      await catalog.select({ scorer_id: 3, name: "Custom" })
+
+      expect(hidden()).toBe(false)
+    })
+
+    it("shows them when the case has no scorer configured", async () => {
+      const catalog = createScorerCatalog()
+      await catalog.select({ scorer_id: 8, uses_ratings: false })
+      getJson.mockResolvedValue({})
+
+      await catalog.bootstrap(42)
+
+      expect(hidden()).toBe(false)
+    })
   })
 })

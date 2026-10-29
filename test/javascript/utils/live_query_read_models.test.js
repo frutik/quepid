@@ -222,6 +222,7 @@ describe("buildDiffReadModel", () => {
           version: 3,
           inError: false,
           searchError: "",
+          diversity: null,
           score: { score: 0.5, allRated: true },
           maxDocScore: 5,
           docs,
@@ -255,6 +256,7 @@ describe("buildDiffReadModel", () => {
           version: 3,
           inError: false,
           searchError: "",
+          diversity: null,
           score: { score: 0.5 },
           docs: [],
           ratedDocs: []
@@ -264,6 +266,7 @@ describe("buildDiffReadModel", () => {
           version: null,
           inError: undefined,
           searchError: undefined,
+          diversity: null,
           score: { score: "?", allRated: false },
           docs: [],
           ratedDocs: []

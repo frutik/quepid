@@ -30,6 +30,8 @@ module Api
             'communal'          => scorer.communal,
             'code'              => scorer.code,
             'scale'             => scorer.scale,
+            'uses_diversity'    => false,
+            'uses_ratings'      => true,
             'owner_id'          => scorer.owner_id,
             'owned'             => false,
             'owner_name'        => scorer.owner.name,
@@ -79,6 +81,41 @@ module Api
 
           acase.reload
           assert_equal acase.scorer.name, Scorer.system_default_scorer.name
+        end
+
+        test 'sets the embedder the diversity scorer uses, with the scorer' do
+          embedder = embedders(:openai_small)
+
+          put :update, params: { case_id: acase.id, id: scorer.id, diversity_embedder_id: embedder.id }
+
+          assert_response :ok
+          assert_equal embedder, acase.reload.diversity_embedder
+          assert_equal scorer.id, acase.scorer_id
+        end
+
+        test 'a blank or 0 diversity embedder goes back to the case\'s own' do
+          acase.update!(diversity_embedder: embedders(:openai_small))
+
+          put :update, params: { case_id: acase.id, id: scorer.id, diversity_embedder_id: 0 }
+
+          assert_response :ok
+          assert_nil acase.reload.diversity_embedder_id
+        end
+
+        test 'leaves the diversity embedder alone when none is sent' do
+          acase.update!(diversity_embedder: embedders(:openai_small))
+
+          put :update, params: { case_id: acase.id, id: scorer.id }
+
+          assert_equal embedders(:openai_small), acase.reload.diversity_embedder
+        end
+
+        test 'refuses an embedder the user cannot see, and changes nothing' do
+          put :update, params: { case_id: acase.id, id: scorer.id, diversity_embedder_id: embedders(:private_ollama).id }
+
+          assert_response :not_found
+          assert_nil acase.reload.diversity_embedder_id
+          assert_not_equal scorer.id, acase.scorer_id
         end
 
         test 'returns an error if scorer does not exist' do

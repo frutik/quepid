@@ -97,6 +97,9 @@ export function buildDiffReadModel(query, { showOnlyRated = false, withDocs = tr
         version: isFunction(searcher.version) ? searcher.version() : null,
         inError: searcher.inError,
         searchError: searcher.searchError,
+        diversity: isFunction(searcher.snapshot?.getDiversity)
+          ? searcher.snapshot.getDiversity(query.queryId)
+          : null,
         score: searcher.diffScore || { score: "?", allRated: false }
       }
       if (!withDocs) return { ...summary, docs: [], ratedDocs: [] }

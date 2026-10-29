@@ -281,6 +281,8 @@ Rails.application.routes.draw do
         resources :scorers, only: [ :index, :update ], controller: :case_scorers
         post 'embedders/vectorize' => 'case_embedders#vectorize', as: :embedders_vectorize
         resources :embedders, only: [ :index, :update ], controller: :case_embedders
+        resource :diversity_settings, only: [ :update ], controller: :case_diversity_settings
+        post 'diversity/score' => 'case_diversity_scores#create', as: :diversity_score
 
         # Case Queries
         resources :queries, except: [ :new, :edit, :show ] do
@@ -301,6 +303,7 @@ Rails.application.routes.draw do
         resources :snapshots, except: [ :new, :edit, :update ] do
           scope module: :snapshots do
             resources :search, only: [ :index ]
+            resource :diversity, only: [ :show, :create ], controller: :diversity
           end
         end
         namespace :snapshots do

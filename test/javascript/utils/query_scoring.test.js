@@ -25,6 +25,36 @@ describe("query scoring runtime", () => {
     })
   })
 
+  it("reports no unrated results for a scorer that never reads ratings", async () => {
+    const docs = [{ hasRating: () => false }, { hasRating: () => false }]
+    const query = { docs, numFound: 2, options: {}, queryId: 7 }
+
+    const result = await scoreQuery({
+      query,
+      docs,
+      ratingsStore: { bestDocs: () => [] },
+      scorer: { score: () => Promise.resolve(0.6), maxScore: () => 1, usesRatings: false }
+    })
+
+    expect(result).toMatchObject({ score: 0.6, allRated: true, countMissingRatings: 0 })
+  })
+
+  it("still counts unrated results when the scorer does not say, or says it reads ratings", async () => {
+    const docs = [{ hasRating: () => false }]
+    const query = { docs, numFound: 1, options: {}, queryId: 7 }
+    const scoreWith = (scorer) =>
+      scoreQuery({ query, docs, ratingsStore: { bestDocs: () => [] }, scorer })
+
+    for (const usesRatings of [undefined, true]) {
+      const result = await scoreWith({
+        score: () => Promise.resolve(0.6),
+        maxScore: () => 1,
+        usesRatings
+      })
+      expect(result).toMatchObject({ allRated: false, countMissingRatings: 1 })
+    }
+  })
+
   it("preserves zero scores and scorer max-score defaults", async () => {
     const query = { docs: [], numFound: 0, options: {} }
     const result = await scoreQuery({

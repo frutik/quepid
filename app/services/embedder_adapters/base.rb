@@ -12,16 +12,23 @@ module EmbedderAdapters
       @embedder = embedder
     end
 
-    # @param texts [Array<String>] raw query texts; the input template is applied here
+    INPUT_TYPES = [ :query, :document ].freeze
+
+    # @param texts [Array<String>] raw texts; for queries the input template is applied here
     # @param timeout [Integer, nil] seconds per request, overriding the embedder's own
     #   (a web request vectorising one new query can't wait as long as a background job)
+    # @param input_type [Symbol] :query (default) or :document. Asymmetric models embed the
+    #   two differently, and instruction-following ones take an instruction on queries only,
+    #   so documents are sent as they are.
     # @return [Array<Array<Float>>] one vector per text, in the same order
-    def embed texts, timeout: nil
+    def embed texts, timeout: nil, input_type: :query
+      raise ArgumentError, "input_type must be one of #{INPUT_TYPES.inspect}" unless INPUT_TYPES.include?(input_type)
       return [] if texts.empty?
 
       @timeout = timeout || embedder.timeout
+      @input_type = input_type
 
-      inputs = texts.map { |text| embedder.render_input(text) }
+      inputs = texts.map { |text| :document == input_type ? text.to_s : embedder.render_input(text) }
       vectors = inputs.each_slice(batch_size).flat_map { |batch| embed_batch(batch) }
       vectors = vectors.map { |vector| truncate(vector) } if 'client' == embedder.truncation
       check_dimensions(vectors)
@@ -29,6 +36,9 @@ module EmbedderAdapters
     end
 
     private
+
+    # :query or :document, for the adapters whose API asks what the text is for.
+    attr_reader :input_type
 
     # @return [String] path relative to the embedder's service_url (no leading slash, so a
     #   base URL with a path prefix keeps it)

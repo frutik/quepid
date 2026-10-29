@@ -9,6 +9,8 @@
 #  auto_populate_book_pairs      :boolean          default(FALSE), not null
 #  auto_populate_case_judgements :boolean          default(TRUE), not null
 #  case_name                     :string(191)
+#  diversity_depth               :integer
+#  diversity_embedder_id         :bigint
 #  last_try_number               :integer
 #  nightly                       :boolean
 #  options                       :json
@@ -24,6 +26,7 @@
 #
 #  idx_owner_archived          (owner_id,archived)
 #  index_cases_book_id         (book_id)
+#  index_cases_on_diversity_embedder_id  (diversity_embedder_id)
 #  index_cases_on_embedder_id  (embedder_id)
 #  index_cases_on_owner_id     (owner_id)
 #
@@ -45,8 +48,16 @@ class Case < ApplicationRecord
   # query_vec). Optional, and set per case only -- books have none.
   belongs_to :embedder, optional: true
 
+  # The embedder the ILD scorer uses for result documents, when not the one above (the query
+  # and document vectors only need to match for a similarity search, not for diversity).
+  belongs_to :diversity_embedder, class_name: 'Embedder', optional: true
+
   belongs_to :owner,
              class_name: 'User', optional: true
+
+  # One vector per document the case's embedder was asked to embed (see ComputeSnapshotDiversityJob).
+  has_many   :document_embeddings,
+             dependent: :delete_all
 
   has_many   :tries,     -> { order(try_number: :desc) },
              dependent:  :destroy,
@@ -95,6 +106,7 @@ class Case < ApplicationRecord
   # Validations
   validates :case_name, presence: true
   validates :options, json_format: true, allow_blank: true
+  validates :diversity_depth, numericality: { only_integer: true, in: 2..100 }, allow_nil: true
   validates_with ScorerExistsValidator
 
   # Callbacks
@@ -139,8 +151,20 @@ class Case < ApplicationRecord
 
   # Not proud of this method, but it's the only way I can get the dependent
   # objects of a Case to actually delete!
+  # Top results per query that diversity is measured over.
+  DEFAULT_DIVERSITY_DEPTH = 10
+
+  def effective_diversity_embedder
+    diversity_embedder || embedder
+  end
+
+  def effective_diversity_depth
+    diversity_depth || DEFAULT_DIVERSITY_DEPTH
+  end
+
   def really_destroy
     snapshots.destroy_all
+    document_embeddings.delete_all
     queries.unscoped.where(case_id: id).destroy_all
     tries.destroy_all
     destroy
@@ -170,6 +194,7 @@ class Case < ApplicationRecord
       # Only an embedder the cloning user can see: otherwise the clone would spend
       # an API key that was never shared with them.
       self.embedder = original_case.embedder if user.embedders_involved_with.exists?(id: original_case.embedder_id)
+      self.diversity_embedder = original_case.diversity_embedder if user.embedders_involved_with.exists?(id: original_case.diversity_embedder_id)
 
       save!
     end

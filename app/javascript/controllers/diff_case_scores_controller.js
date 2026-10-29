@@ -2,6 +2,7 @@ import { Controller } from "@hotwired/stimulus"
 import { subscribeToStore } from "utils/store_subscription"
 import { formatScore, scoreToColor, renderScoreState } from "utils/scoring"
 import { getCoreStores } from "utils/core_store_access"
+import { diversityComparable, diversityTooltip, formatDiversity } from "utils/diversity_status"
 
 /**
  * Renders the case-level snapshot comparison scores.
@@ -33,6 +34,7 @@ export default class extends Controller {
       .querySelectorAll("[data-diff-case-scores-generated]")
       .forEach((badge) => badge.remove())
     const searchers = this.store?.caseDiffs() || []
+    const comparable = diversityComparable(searchers.map((searcher) => searcher.diversity?.meta))
 
     searchers.forEach((searcher) => {
       const badge = document.createElement("div")
@@ -55,7 +57,28 @@ export default class extends Controller {
       rating.append(value, label)
       renderScoreState(rating, score, searcher.score?.maxScore || 1)
       badge.append(rating)
+      const diversity = this.diversityLine(searcher.diversity, comparable)
+      if (diversity) badge.append(diversity)
       this.element.append(badge)
     })
+  }
+
+  // The snapshot's result diversity under its score, when it has one. Flagged when the value
+  // was made with other settings than the case has now (outdated), or than the other snapshots
+  // being compared (not comparable).
+  diversityLine(diversity, comparable) {
+    if (typeof diversity?.value !== "number") return null
+
+    const line = document.createElement("div")
+    line.className = "diff-diversity small text-center text-muted"
+    const flags = []
+    if (diversity.stale) flags.push("outdated")
+    if (!comparable) flags.push("not comparable")
+    line.textContent =
+      `diversity ${formatDiversity(diversity.value)}` +
+      (flags.length > 0 ? ` (${flags.join(", ")})` : "")
+    line.title = diversityTooltip(diversity.meta)
+    if (flags.length > 0) line.classList.add("text-warning")
+    return line
   }
 }

@@ -159,6 +159,24 @@ class EmbedderTest < ActiveSupport::TestCase
     end
   end
 
+  describe '#document_fingerprint' do
+    test 'ignores the instruction and template, follows model and dimensions' do
+      embedder = build_embedder(provider: 'ollama', instruction: 'Find films')
+      original = embedder.document_fingerprint
+      query_fingerprint = embedder.fingerprint
+
+      embedder.instruction = 'Find something else'
+      embedder.input_template = 'Q: {query}'
+
+      assert_equal original, embedder.document_fingerprint
+      assert_not_equal query_fingerprint, embedder.fingerprint
+
+      embedder.model = 'other-model'
+
+      assert_not_equal original, embedder.document_fingerprint
+    end
+  end
+
   describe 'visibility' do
     test 'for_user covers owned and team-shared embedders only' do
       visible = Embedder.for_user(users(:random))

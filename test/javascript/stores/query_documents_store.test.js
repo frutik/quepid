@@ -49,7 +49,9 @@ describe("QueryDocumentsStore", () => {
     store.setCaseDiffs([{ name: "Baseline", version: 2, score: { score: 0.5 } }])
     const query = vi.spyOn(store, "query")
 
-    expect(store.caseDiffs()).toEqual([{ name: "Baseline", version: 2, score: { score: 0.5 } }])
+    expect(store.caseDiffs()).toEqual([
+      { name: "Baseline", version: 2, diversity: null, score: { score: 0.5 } }
+    ])
     expect(store.caseDiffs()[0].score).not.toBe(store.caseDiffs()[0].score)
     expect(query).not.toHaveBeenCalled()
   })
@@ -189,6 +191,7 @@ describe("QueryDocumentsStore", () => {
       version: null,
       inError: false,
       searchError: "",
+      diversity: null,
       score: { score: "?", allRated: false },
       docs: [],
       ratedDocs: []
@@ -342,7 +345,7 @@ describe("QueryDocumentsStore", () => {
     store.setCaseDiffs([{ name: "Baseline", version: 3, score: { score: 0.75, allRated: true } }])
 
     expect(store.snapshot().caseDiffs).toEqual([
-      { name: "Baseline", version: 3, score: { score: 0.75, allRated: true } }
+      { name: "Baseline", version: 3, diversity: null, score: { score: 0.75, allRated: true } }
     ])
   })
 
@@ -432,7 +435,7 @@ describe("QueryDocumentsStore", () => {
     store.setCaseDiffs([{}])
 
     expect(store.snapshot().caseDiffs).toEqual([
-      { name: "Snapshot", version: null, score: { score: "?", allRated: false } }
+      { name: "Snapshot", version: null, diversity: null, score: { score: "?", allRated: false } }
     ])
   })
 
