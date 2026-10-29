@@ -2369,3 +2369,9 @@ parts:
         result: null
         notes: ""
         paths: ["app/jobs/compute_snapshot_diversity_job.rb", "app/services/document_embedder.rb", "app/services/diversity_calculator.rb", "app/services/document_text.rb", "app/models/field_spec.rb", "app/models/document_embedding.rb", "app/controllers/api/v1/snapshots/diversity_controller.rb", "app/controllers/api/v1/case_diversity_settings_controller.rb", "app/javascript/controllers/case_diversity_core_controller.js", "app/javascript/controllers/diff_case_scores_controller.js", "app/javascript/controllers/diff_score_controller.js", "app/javascript/utils/diversity_status.js", "app/views/shared/_case_embedder_core_modal.html.erb"]
+      "19.7":
+        title: "Score a case by EILD@10"
+        last_run: null
+        result: null
+        notes: ""
+        paths: ["app/services/diversity_calculator.rb", "app/services/result_diversity.rb", "app/controllers/api/v1/case_diversity_scores_controller.rb", "app/services/fetch_service.rb", "app/javascript/utils/scorer_runtime.js", "app/models/scorer.rb", "db/scorers/eild@10.js"]

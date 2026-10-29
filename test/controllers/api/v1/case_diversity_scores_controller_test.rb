@@ -58,6 +58,27 @@ module Api
         assert_requested(:post, URL) { |request| 'text-embedding-3-large' == JSON.parse(request.body)['model'] }
       end
 
+      test 'scores by EILD when asked, weighting by the relevance it is sent' do
+        respond_with_orthogonal_vectors
+        docs = [ { id: 'a', title: 'Star Wars', relevance: 1.0 }, { id: 'b', title: 'Casablanca', relevance: 0.5 } ]
+
+        post :create, params: { case_id: acase.id, docs: docs, metric: 'eild' }
+
+        disc = ->(rank) { 1.0 / Math.log2(rank + 1) }
+        assert_response :ok
+        assert_in_delta (disc.call(1) + (0.5 * disc.call(2))) / (disc.call(1) + disc.call(2)),
+                        response.parsed_body['score'], 1.0e-6
+      end
+
+      test 'scores by ILD unless eild is asked for, whatever relevance it is sent' do
+        respond_with_orthogonal_vectors
+        docs = [ { id: 'a', title: 'Star Wars', relevance: 0 }, { id: 'b', title: 'Casablanca', relevance: 0 } ]
+
+        post :create, params: { case_id: acase.id, docs: docs }
+
+        assert_in_delta 1.0, response.parsed_body['score'], 1.0e-6
+      end
+
       test 'has no score for a single result' do
         respond_with_orthogonal_vectors
 

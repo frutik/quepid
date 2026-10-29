@@ -97,6 +97,13 @@ under **Select scorer** like nDCG@10 or AP@10.
 - The scorer's code is `scoreByDiversity(10);`; the number is how many results to measure.
   Copy the scorer to measure a different depth.
 
+**EILD@10** is the same measure weighted by rank and relevance (Vargas & Castells, RecSys 2011):
+a pair of different results counts for more the higher both rank and the more relevant they are,
+so it rewards variety near the top and only among relevant results. Relevance is the rating over
+the scale's top (unrated counts as 0, like nDCG), so unlike ILD it needs ratings, and the rating
+controls stay open for it. Pick it the same way and give it an embedder the same way. With no
+ratings its score is 0.
+
 The **Result diversity** section of the embedder dialog does the same for an existing snapshot
 without changing the case's scorer: pick a snapshot and **Compute**.
 

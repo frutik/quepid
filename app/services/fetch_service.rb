@@ -194,7 +194,7 @@ class FetchService
             total:   snapshot_query.number_of_results,
             options: snapshot_query.query.options,
           },
-          diversity: (snapshot_query_diversity(snapshot, snapshot_query, scorer) if scorer.uses_diversity?)
+          diversity: (snapshot_query_diversity(snapshot, snapshot_query, scorer, doc_ratings) if scorer.uses_diversity?)
         )
         # puts "the score is #{score}"
         # puts "nan?  #{score.nan?}" if score.is_a? Float
@@ -282,18 +282,21 @@ class FetchService
   # case's diversity embedder, as the browser does through ResultDiversity. nil when there is
   # nothing to measure (no embedder, no title field, fewer than two results) or the provider
   # fails, which leaves the query unscored.
-  def snapshot_query_diversity snapshot, snapshot_query, scorer
+  def snapshot_query_diversity snapshot, snapshot_query, scorer, doc_ratings
     embedder = @case.effective_diversity_embedder
     return nil if embedder.nil?
 
     field_spec = FieldSpec.new((snapshot.try || @case.tries.first)&.field_spec)
     return nil if field_spec.title_is_id?
 
+    top = scorer.scale.last.to_f
     docs = snapshot_query.snapshot_docs.reject(&:rated_only).first(scorer.diversity_depth).map do |snapshot_doc|
       fields = snapshot_doc.fields.present? ? JSON.parse(snapshot_doc.fields) : nil
-      { id: snapshot_doc.doc_id, text: DocumentText.for(fields, field_spec.title_field) }
+      # EILD's relevance: the rating over the scale's top, as a probability; unrated counts as 0.
+      relevance = top.positive? ? (doc_ratings[snapshot_doc.doc_id].to_f / top).clamp(0.0, 1.0) : 0.0
+      { id: snapshot_doc.doc_id, text: DocumentText.for(fields, field_spec.title_field), relevance: relevance }
     end
-    ResultDiversity.new(@case, embedder).score(docs).value
+    ResultDiversity.new(@case, embedder).score(docs, metric: scorer.diversity_metric).value
   rescue EmbedderAdapters::Error, JSON::ParserError => e
     Rails.logger.warn("FetchService diversity for query #{snapshot_query.query_id}: #{e.message}")
     nil

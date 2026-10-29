@@ -96,7 +96,8 @@ diversity** dropdown when the selected scorer `uses_diversity?`, and saves it wi
 
 ### 2.5 A scorer says whether it reads ratings
 
-ILD never looks at ratings; EILD (expected ILD, which weights results by relevance) would.
+ILD never looks at ratings; EILD (expected ILD, which weights results by relevance; see
+[ADR 0003](./0003-eild-expected-intra-list-diversity.md)) does.
 `Scorer#uses_ratings?` is false only for a scorer that calls `scoreByDiversity` and no rating
 helper (`avgRating`, `docRating`, `topRatings`, ...), and is sent to the page as `uses_ratings`.
 When false, `scoreQuery` reports every query as fully rated, so the per-query "unrated" badge, the

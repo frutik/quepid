@@ -128,7 +128,28 @@ class ScorerTest < ActiveSupport::TestCase
       assert_predicate Scorer.new(name: 'None'), :uses_ratings?
     end
 
-    test 'a diversity scorer that also reads ratings (EILD) keeps the rating UI' do
+    test 'scoreByExpectedDiversity is EILD: diversity scoring that reads ratings' do
+      scorer = Scorer.new(name: 'EILD', code: 'scoreByExpectedDiversity(7);')
+
+      assert_predicate scorer, :uses_diversity?
+      assert_equal :eild, scorer.diversity_metric
+      assert_predicate scorer, :uses_ratings?
+      assert_equal 7, scorer.diversity_depth
+    end
+
+    test 'scoreByDiversity is ILD' do
+      assert_equal :ild, Scorer.new(name: 'ILD', code: 'scoreByDiversity(10);').diversity_metric
+    end
+
+    test 'the default EILD@10 scorer is picked up from its file' do
+      scorer = Scorer.new(name: 'EILD@10', code: Rails.root.join('db/scorers/eild@10.js').read)
+
+      assert_predicate scorer, :uses_diversity?
+      assert_equal :eild, scorer.diversity_metric
+      assert_equal 10, scorer.diversity_depth
+    end
+
+    test 'a diversity scorer that also reads ratings keeps the rating UI' do
       code = "const best = topRatings(3);\nscoreByDiversity(10);"
 
       assert_predicate Scorer.new(name: 'EILD', code: code), :uses_ratings?

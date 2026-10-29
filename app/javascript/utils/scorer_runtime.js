@@ -1,5 +1,14 @@
 const DEFAULT_NUM_DOCS = 10
 
+// A rating as a probability of relevance: rating over the scale's top, 0 when unrated.
+const relevanceOf = (doc, max) => {
+  if (typeof doc.hasRating !== "function" || !doc.hasRating()) return 0
+  const top = parseFloat(max)
+  const rating = parseFloat(doc.getRating())
+  if (!(top > 0) || Number.isNaN(rating)) return 0
+  return Math.min(1, Math.max(0, rating / top))
+}
+
 const copyValue = (value) => {
   if (value === null || typeof value !== "object") return value
   if (Array.isArray(value)) return value.map(copyValue)
@@ -27,6 +36,9 @@ const copyValue = (value) => {
  *     the `diversity` option -- ({ queryId, docs: [{ id, title }], count }) -> Promise of a
  *     number, or null when there is nothing to measure -- because the server does the
  *     embedding. Without that option the scorer errors.
+ *   scoreByExpectedDiversity(count), the same weighted by rank and relevance (EILD, Vargas &
+ *     Castells 2011): each doc also carries `relevance`, its rating over the scale's top (0 when
+ *     unrated), and the option is called with `metric: "eild"`.
  *   Fields: scorerId, name, displayName, code, scale, scaleWithLabels,
  *     showScaleLabels, colors, communal, owned, ownerId, ownerName, teams,
  *     error, depthOfRating, usesRatings (false when the scorer never reads ratings, so nothing
@@ -241,7 +253,9 @@ export function createScorer(
       query.depthOfRating = count
       scorer.depthOfRating = count
     }
-    const scoreByDiversity = (count = DEFAULT_NUM_DOCS) => {
+    // How different the first `count` results are from one another (ILD), or the same weighted by
+    // rank and relevance (EILD, `metric: "eild"`). The server embeds the titles and does the maths.
+    const diversityScore = (count, metric) => {
       if (typeof diversity !== "function") {
         rejectScore(new Error("Diversity scoring is not available here"))
         return
@@ -249,13 +263,20 @@ export function createScorer(
       // No results at all stays "zsr", as for every scorer; one result, or none with a title,
       // is just a query with nothing to measure.
       if (docs.length === 0) return resolveScore(null)
-      const top = docs.slice(0, count).map((doc) => ({ id: doc.id, title: doc.title }))
-      Promise.resolve(diversity({ queryId: query.queryId, docs: top, count })).then(
+      const top = docs.slice(0, count).map((doc) => {
+        const entry = { id: doc.id, title: doc.title }
+        // Relevance is the rating over the scale's top, as a probability; unrated counts as 0.
+        if (metric === "eild") entry.relevance = relevanceOf(doc, max)
+        return entry
+      })
+      Promise.resolve(diversity({ queryId: query.queryId, docs: top, count, metric })).then(
         // Nothing to measure (fewer than two results with a title) is no score, not 0.
         (value) => (value === null || value === undefined ? rejectScore(0) : resolveScore(value)),
         rejectScore
       )
     }
+    const scoreByDiversity = (count = DEFAULT_NUM_DOCS) => diversityScore(count, "ild")
+    const scoreByExpectedDiversity = (count = DEFAULT_NUM_DOCS) => diversityScore(count, "eild")
     const pass = () => resolveScore(100)
     const fail = () => rejectScore(0)
     const setScore = (score) => resolveScore(score)
@@ -296,6 +317,7 @@ export function createScorer(
       "qOption",
       "recordDepthOfRanking",
       "scoreByDiversity",
+      "scoreByExpectedDiversity",
       "pass",
       "fail",
       "setScore",
@@ -330,6 +352,7 @@ export function createScorer(
       qOption,
       recordDepthOfRanking,
       scoreByDiversity,
+      scoreByExpectedDiversity,
       pass,
       fail,
       setScore,

@@ -82,4 +82,38 @@ class ResultDiversityTest < ActiveSupport::TestCase
 
     assert_requested(:post, URL) { |request| [ 'Star Wars', 'Alien' ] == JSON.parse(request.body)['input'] }
   end
+
+  describe 'eild' do
+    test 'weights the pair by rank and relevance' do
+      respond_with_table
+      docs = [ doc('a', 'Star Wars').merge(relevance: 1.0), doc('b', 'Casablanca').merge(relevance: 0.5) ]
+
+      result = ResultDiversity.new(kase, embedder).score(docs, metric: :eild)
+
+      disc = ->(rank) { 1.0 / Math.log2(rank + 1) }
+      assert_in_delta (disc.call(1) + (0.5 * disc.call(2))) / (disc.call(1) + disc.call(2)), result.value, 1.0e-6
+    end
+
+    test 'is ild for two fully relevant results' do
+      respond_with_table
+      docs = [ doc('a', 'Star Wars').merge(relevance: 1.0), doc('b', 'Casablanca').merge(relevance: 1.0) ]
+
+      assert_in_delta 1.0, ResultDiversity.new(kase, embedder).score(docs, metric: :eild).value, 1.0e-6
+    end
+
+    test 'unrated results are not relevant, so nothing is diverse' do
+      respond_with_table
+
+      result = ResultDiversity.new(kase, embedder).score([ doc('a', 'Star Wars'), doc('b', 'Casablanca') ], metric: :eild)
+
+      assert_in_delta 0.0, result.value, 1.0e-6
+    end
+
+    test 'a result without a title keeps its rank' do
+      respond_with_table
+      docs = [ doc('a', 'Star Wars'), doc('x', nil), doc('b', 'Casablanca') ].map { |d| d.merge(relevance: 1.0) }
+
+      assert_in_delta 1.0, ResultDiversity.new(kase, embedder).score(docs, metric: :eild).value, 1.0e-6
+    end
+  end
 end

@@ -653,6 +653,35 @@ class FetchServiceTest < ActiveSupport::TestCase
         assert_in_delta(1.0, snapshot_query.reload.score)
       end
 
+      it 'weights by the ratings when the scorer is EILD' do
+        asnapshot.scorer.update!(code: File.read('db/scorers/eild@10.js'), scale: [ 0, 1, 2, 3 ])
+        snapshot_query.query.ratings.destroy_all
+        snapshot_query.query.ratings.create!(doc_id: 'doc-Star Wars', rating: 3)
+        snapshot_query.query.ratings.create!(doc_id: 'doc-Casablanca', rating: 0)
+        stub_embeddings
+        fetch_service = FetchService.new options
+        fetch_service.begin acase, atry
+
+        fetch_service.score_snapshot(asnapshot, atry, nil)
+
+        # Casablanca is rated 0, so its pair adds nothing: EILD is 0 here, where ILD is 1.
+        assert_in_delta(0.0, snapshot_query.reload.score)
+      end
+
+      it 'weights a rated pair by rank and relevance when the scorer is EILD' do
+        asnapshot.scorer.update!(code: File.read('db/scorers/eild@10.js'), scale: [ 0, 1, 2, 3 ])
+        snapshot_query.query.ratings.destroy_all
+        snapshot_query.query.ratings.create!(doc_id: 'doc-Star Wars', rating: 3)
+        snapshot_query.query.ratings.create!(doc_id: 'doc-Casablanca', rating: 3)
+        stub_embeddings
+        fetch_service = FetchService.new options
+        fetch_service.begin acase, atry
+
+        fetch_service.score_snapshot(asnapshot, atry, nil)
+
+        assert_in_delta(1.0, snapshot_query.reload.score)
+      end
+
       it 'leaves the query unscored when the case has no embedder' do
         acase.update!(embedder: nil)
         fetch_service = FetchService.new options

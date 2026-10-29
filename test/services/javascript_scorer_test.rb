@@ -37,6 +37,14 @@ class JavascriptScorerTest < ActiveSupport::TestCase
     end
   end
 
+  describe 'eild@10' do
+    test 'scores by the diversity it is given' do
+      score = javascript_scorer.score([ { id: 1 }, { id: 2 } ], [], File.read('db/scorers/eild@10.js'), diversity: 0.4321)
+
+      assert_in_delta 0.43, score
+    end
+  end
+
   describe 'p@10' do
     describe 'when score data is invalid' do
       let(:the_case) { cases(:case_without_score) }

@@ -44,11 +44,12 @@ export function createCoreWorkspaceRuntime({
       schedule: framework.schedule,
       refreshRatedDocs: (queryId, count) =>
         liveQuery.queryCapabilities.refreshRatedDocs(queryId, count),
-      // The ILD scorer's score is computed on the server, which embeds the titles.
-      diversity: ({ docs, count }) =>
+      // The ILD and EILD scorers' scores are computed on the server, which embeds the titles.
+      diversity: ({ docs, count, metric }) =>
         postJson(`api/cases/${navigationRuntime.getCaseNo()}/diversity/score`, {
           docs,
-          count
+          count,
+          metric
         }).then((response) => response?.score ?? null)
     }
   })

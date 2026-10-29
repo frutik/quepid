@@ -394,7 +394,8 @@ describe("scorer runtime", () => {
           { id: "a", title: "Star Wars" },
           { id: "b", title: "Alien" }
         ],
-        count: 2
+        count: 2,
+        metric: "ild"
       })
     })
 
@@ -436,6 +437,71 @@ describe("scorer runtime", () => {
 
       expect(await scorer.score({ queryId: 1, ratedDocs: [] }, 3, docs, [])).toBeNull()
       expect(scorer.error.message).toMatch(/not available/)
+    })
+
+    describe("scoreByExpectedDiversity", () => {
+      const rated = (id, title, rating) => ({
+        id,
+        title,
+        hasRating: () => rating !== undefined,
+        getRating: () => rating
+      })
+
+      it("asks for EILD and sends each result's relevance: its rating over the scale's top", async () => {
+        const scoredDocs = [rated("a", "Star Wars", 3), rated("b", "Alien", 1), rated("c", "Heat")]
+        const diversity = vi.fn().mockResolvedValue(0.3)
+        const scorer = createScorer(
+          { scale: [0, 1, 2, 3], code: "scoreByExpectedDiversity(3)" },
+          { diversity }
+        )
+
+        expect(await scorer.score({ queryId: 7, ratedDocs: [] }, 3, scoredDocs, [])).toBe(0.3)
+        expect(diversity).toHaveBeenCalledWith({
+          queryId: 7,
+          docs: [
+            { id: "a", title: "Star Wars", relevance: 1 },
+            { id: "b", title: "Alien", relevance: 1 / 3 },
+            { id: "c", title: "Heat", relevance: 0 }
+          ],
+          count: 3,
+          metric: "eild"
+        })
+      })
+
+      it("does not send relevance for plain ILD", async () => {
+        const diversity = vi.fn().mockResolvedValue(0.3)
+        const scorer = createScorer(
+          { scale: [0, 1, 2, 3], code: "scoreByDiversity(2)" },
+          { diversity }
+        )
+
+        await scorer.score(
+          { queryId: 7, ratedDocs: [] },
+          2,
+          [rated("a", "A", 3), rated("b", "B", 3)],
+          []
+        )
+
+        expect(diversity.mock.calls[0][0].metric).toBe("ild")
+        expect(diversity.mock.calls[0][0].docs[0]).toEqual({ id: "a", title: "A" })
+      })
+
+      it("clamps relevance to 0..1 and treats a scale with no top as unrelated", async () => {
+        const diversity = vi.fn().mockResolvedValue(0.3)
+        const clamped = createScorer(
+          { scale: [0, 1], code: "scoreByExpectedDiversity(2)" },
+          { diversity }
+        )
+
+        await clamped.score(
+          { queryId: 1, ratedDocs: [] },
+          2,
+          [rated("a", "A", 5), rated("b", "B", -2)],
+          []
+        )
+
+        expect(diversity.mock.calls[0][0].docs.map((doc) => doc.relevance)).toEqual([1, 0])
+      })
     })
 
     it("keeps a zero-result query a zero-result query", async () => {

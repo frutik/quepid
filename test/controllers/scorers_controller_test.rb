@@ -37,6 +37,19 @@ class ScorersControllerTest < ActionController::TestCase
 
         assert_not_nil assigns(:scorers)
       end
+
+      test 'shows the grade scale of a scorer that reads ratings, and "Not used" for one that does not' do
+        Scorer.where(name: [ 'AP list', 'ILD list' ]).destroy_all
+        Scorer.create!(name: 'AP list', communal: true, scale: [ 0, 1 ], code: 'setScore(avgRating());')
+        Scorer.create!(name: 'ILD list', communal: true, scale: [ 0, 1, 2, 3 ], code: 'scoreByDiversity(10);')
+
+        get :index, params: { per_page: 100 }
+
+        assert_response :success
+        assert_select 'tr', text: /AP list.*\[0, 1\]/m
+        assert_select 'tr', text: /ILD list.*Not used/m
+        assert_select 'tr', text: /ILD list.*\[0, 1, 2, 3\]/m, count: 0
+      end
     end
   end
 

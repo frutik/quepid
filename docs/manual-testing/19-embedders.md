@@ -105,3 +105,20 @@ For a local run, the Ollama container needs an embedding model: `docker exec oll
 - **Edge cases:**
   - [ ] A snapshot taken without Record document fields — "This snapshot has no document fields."
   - [ ] A depth of `1` or `101` — the status shows the server's error.
+
+### 19.7 Score a case by EILD@10
+
+- [ ] **Steps:**
+  1. Open a case with an embedder (19.3), a title in the try's field spec, and some rated results.
+  2. Open **Select scorer**, pick **EILD@10**, choose an embedder for result diversity, and click **Select Scorer**.
+  3. Look at a query's score. Rate its first result `0`, then `3`.
+  4. Rate the last result `0`, then `3`.
+  5. Switch to **ILD@10** and look at the same query.
+- **Expected:**
+  - Step 2: the same embedder dropdown as for ILD@10 appears.
+  - Step 3: the score changes with the rating, and rating controls are open (unlike ILD@10).
+  - Step 4: it changes less than in step 3: a result at the bottom counts for less than one at the top.
+  - Step 5: ILD@10 gives a value that ignores ratings, and the rating controls are locked.
+- **Edge cases:**
+  - [ ] A query with no ratings at all scores 0, not "no score"; the unrated badge shows.
+  - [ ] Two near-identical top results score lower than two different ones, for the same ratings.
