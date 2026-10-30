@@ -1,6 +1,6 @@
 # Can a cheap pairwise judge order search results? First findings
 
-*Status: early results from a first probe on dev data, 2026-10-30. Nothing here is a benchmark.
+*Status: first experiment on one dev book, 2026-10-30. Promising, not a benchmark.
 The decision record is [ADR 0005](../adr/0005-pairwise-and-listwise-ranking-judges.md) and the
 build plan is [pairwise_ranking_judges.md](pairwise_ranking_judges.md).*
 
@@ -67,24 +67,82 @@ swapping the pointwise prompt for a comparison-specific one made no measurable d
 and worst-rated document, at least 1.5 grades apart on average. One answer matched the humans 82–83% of
 the time. Asking both orders and requiring them to agree and match gave 23 of 30.
 
+## The experiment: pairwise against pointwise
+
+We fixed the pass bar in writing before running anything ([pairwise_g1_bar.md](pairwise_g1_bar.md)), then
+ran the comparison once.
+
+**Setup.** The Haystack Icecat Rating Party book: 30 queries, 254 query and document pairs, Icecat product
+records. The reference is the average of the anonymous human ratings per pair, rounded to 0–3. Three ways
+of ordering each query's documents were scored against it: the order the search returned, Jev's pointwise
+grades (rate each document, sort by grade), and Jev pairwise (compare every pair of a query's documents,
+sort by wins).
+
+### The numbers
+
+| Ordering | Kendall's tau-b | nDCG@10 | Pairwise accuracy |
+| --- | --- | --- | --- |
+| Search order | 0.019 | 0.799 | 0.505 |
+| Pointwise Jev | 0.340 | 0.879 | 0.705 |
+| Pairwise Jev (round-robin) | **0.466** | **0.922** | **0.804** |
+
+Pairwise minus pointwise, per query, with a paired bootstrap over the 30 queries (5,000 resamples):
+
+| Metric | Mean difference | 95% interval | Queries better / equal / worse |
+| --- | --- | --- | --- |
+| tau-b | +0.127 | 0.028 to 0.225 | 20 / 4 / 6 |
+| nDCG@10 | +0.043 | 0.018 to 0.075 | 20 / 3 / 7 |
+
+Stability, asking again with the candidates reversed: tau-b 0.893. Cost: 991 comparisons (33 a query),
+667,564 tokens, 82 three-way contradictions (A beats B beats C beats A) across all queries, no ties.
+
+### What that means in plain terms
+
+- **The search's own order is about as good as random here.** Its tau-b of 0.02 says the order the search
+  returned has almost no relationship with what people thought of the documents. That is why there is room
+  to improve it.
+- **Both Jev methods help, and pairwise helps more.** Asking Jev to pick the better of two documents put
+  the documents in an order that agreed with the crowd noticeably more often than asking it to grade each
+  one: 80% of the document pairs people rated differently were put the right way round, against 70% for
+  grading and 50% for the search (a coin flip).
+- **Where it matters most, the gain is real but moderate.** nDCG@10 is the number most people read. It went
+  from 0.88 to 0.92, which is about four points. On a single query, pairwise did better than pointwise 20
+  times, tied 3, and did worse 7.
+- **It is unlikely to be luck, but only just.** The 95% intervals are above zero for both measures
+  (0.03 to 0.23 for tau-b, 0.02 to 0.08 for nDCG). The lower ends sit close to the margin we set (0.02), so
+  this is a pass, not a wide one.
+- **It is steady.** Reversing the candidate list changed the order very little (0.89), so the result does
+  not come from the order documents happened to arrive in.
+- **It is not free.** About 33 comparisons per query, and around 670 tokens each, against one call per
+  document for grading. At this list size that is a few hundred thousand tokens for the whole experiment.
+  The 82 contradictions are small next to the number of comparisons, and round-robin copes with them by
+  counting wins.
+
+By the bar we wrote down first, **pairwise passed**: it beat pointwise by at least 0.02 on both measures,
+the intervals excluded zero, it beat the search order, and it was stable.
+
 ## What this does not tell us
 
-- Those pairs were the easy ones, the two extremes of a query. A ranking is decided by the close calls,
-  and we have not measured those.
-- The human ratings on that book are anonymous and averaged. Calibration needs a named rater, so the full
-  experiment cannot run on it as it stands.
-- We have not compared pairwise against Jev's pointwise grades, which is the actual question.
+- It is one book of short product records, 30 queries. Position bias was large on long legal texts, and
+  nothing here says pairwise holds up there.
+- The reference is a crowd average of anonymous ratings, not a named person, so we cannot say how close to
+  a human ceiling either method is.
+- Each query's list is only its rated documents, about eight, so nDCG@10 is over those and not over a live
+  top 10. Top-10 overlap is 1.0 for every method for the same reason and tells us nothing.
+- Pointwise was run with scale labels we wrote ourselves and no confidence floor. Different labels could
+  move it. Pairwise used the same judging prompt.
+- The test pairs were the rated documents of each query, including close calls, but we have not looked
+  separately at how each method does on the closest ones.
 - Nothing about BlitzRank has been tested. Its published savings (the ADR cites 25–40% fewer tokens, and
-  about 7× fewer than pairwise methods) come from its authors' own models. With six to ten results a query
-  and batched requests, exhaustive comparison may already be cheap enough that it is not needed.
+  about 7× fewer than pairwise methods) come from its authors' own models. At about 33 comparisons a query
+  the exhaustive method may already be cheap enough that it is not needed.
 
 ## What happens next
 
-1. Get a reference with a named rater, so a calibration sample can be drawn by query.
-2. Fix the pass bar in writing before running anything: pairwise round-robin must beat pointwise Jev on
-   both tau-b and nDCG@10 against humans, by more than the run-to-run noise.
-3. Run the experiment, with close calls included, and report the flip rate alongside the metrics.
-4. If it passes, put it in the Calibration tab. If it does not, stop; BlitzRank would only make a weak
-   oracle cheaper.
+1. Repeat on a second book, ideally one with a named rater and complete top lists, since the bar asks for
+   two books.
+2. If it holds, put ranking calibration in the Calibration tab so people can run it without a console.
+3. Only then ask whether a cheaper method (comparison sort, then BlitzRank) is worth building, by measuring
+   how much of the cost they would save at our list sizes without losing agreement.
 
-The result, whichever way it goes, gets written into ADR 0005.
+The full numbers and caveats are in ADR 0005, Appendix B.

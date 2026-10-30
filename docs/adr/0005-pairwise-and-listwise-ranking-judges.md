@@ -266,3 +266,44 @@ of the dev books, six documents each. Scratch script, not committed.
 flip rate with every run (it is `stability`, P5), and ask both orders and combine only where it is high.
 The swap in D3 stays as the cheap default. G1 needs a book with a named human rater, and pairs that
 are not just the extremes of a query.
+
+---
+
+## Appendix B — G1 result (2026-10-30)
+
+Run against the bar fixed in [pairwise_g1_bar.md](../todo/pairwise_g1_bar.md) (commit `a19be8b17`, before any
+answer existed): calibration sample 5 of the Haystack Icecat Rating Party book, 30 queries, 254 pairs, the
+crowd-average reference, `jev` (`jev-1.14.0`), one run per arm.
+
+| Arm | tau-b | nDCG@10 | pairwise accuracy |
+| --- | --- | --- | --- |
+| Search order | 0.019 | 0.799 | 0.505 |
+| Pointwise Jev | 0.340 | 0.879 | 0.705 |
+| Pairwise Jev, round-robin | **0.466** | **0.922** | **0.804** |
+
+Paired bootstrap over the 30 queries, pairwise minus pointwise (5,000 resamples, seed 1):
+
+| Metric | Mean difference | 95% interval | Queries better / equal / worse |
+| --- | --- | --- | --- |
+| tau-b | +0.127 | [0.028, 0.225] | 20 / 4 / 6 |
+| nDCG@10 | +0.043 | [0.018, 0.075] | 20 / 3 / 7 |
+
+Stability (forward vs reversed candidates, tau-b) 0.893. Both metrics are defined for all 30 queries.
+Cost: 991 comparisons (33 a query), 667,564 tokens, 82 three-way cycles in total; no ties (no tie band was set).
+
+**Verdict by the bar: pass.** Both metrics clear the 0.02 margin, both intervals exclude 0, pairwise beats
+the search order on both, stability is above 0.7.
+
+**What this does and does not show.**
+
+- It is one book, 30 queries, with a crowd average as the reference. It says pairwise Jev agrees with the
+  crowd better than pointwise Jev does on short product records. It says nothing about long texts (Appendix
+  A: strong position bias there) and no human ceiling was computed.
+- nDCG is over each query's rated documents (about 8), not a live top 10, and top-10 overlap is
+  1.0 for every arm because the lists are no longer than 10; it carries no information here and is not used.
+- The pointwise arm was given the book's scale with labels I wrote, and no confidence floor. Different
+  labels could move it. The pairwise judge used the same judge prompt as the pointwise one.
+- The lower interval ends (0.028 and 0.018) are close to the margin: a pass, not a wide one.
+
+**Consequence.** Per the plan, G1 passing allows P6 (ranking calibration in the UI). Before that, repeat on
+a second book, preferably one with a named rater and complete top lists, since the bar names two.
