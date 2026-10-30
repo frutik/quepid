@@ -1,6 +1,6 @@
 # Can a cheap pairwise judge order search results? First findings
 
-*Status: first experiment on one dev book, 2026-10-30. Promising, not a benchmark.
+*Status: two experiments on two dev books, 2026-10-30: a clear win on one, an inconclusive result on the other. Promising, not a benchmark.
 The decision record is [ADR 0005](../adr/0005-pairwise-and-listwise-ranking-judges.md) and the
 build plan is [pairwise_ranking_judges.md](pairwise_ranking_judges.md).*
 
@@ -121,6 +121,38 @@ Stability, asking again with the candidates reversed: tau-b 0.893. Cost: 991 com
 By the bar we wrote down first, **pairwise passed**: it beat pointwise by at least 0.02 on both measures,
 the intervals excluded zero, it beat the search order, and it was stable.
 
+## A second book: WANDS
+
+The plan asks for two books, so we built one from WANDS, a public set of furniture and home products with
+human labels (0 irrelevant, 1 partial match, 2 exact match). Same bar, written down first
+([pairwise_g1_bar_wands.md](pairwise_g1_bar_wands.md)): 70 queries, the top 10 of a text search each with all
+ten labelled, 30 queries sampled, 300 pairs.
+
+| Ordering | Kendall's tau-b | nDCG@10 | Pairwise accuracy |
+| --- | --- | --- | --- |
+| Search order | 0.272 | 0.957 | 0.711 |
+| Pointwise Jev | 0.354 | 0.972 | 0.785 |
+| Pairwise Jev (round-robin) | 0.421 | 0.979 | 0.847 |
+
+Pairwise minus pointwise: tau-b +0.067 (95% interval -0.042 to 0.164, defined for only 23 of 30 queries),
+nDCG@10 +0.007 (-0.003 to 0.016). Stability 0.935. Cost: 1,350 comparisons, about 1.03 million tokens.
+
+**In plain terms:** pairwise is ahead on every measure again, but this time the gaps are small enough that
+they could be noise, and by our own bar the result is **inconclusive**. Two reasons the book cannot say much:
+
+- **Nothing left to improve.** The search's own top 10 already scores 0.957 out of 1.0, because most of what
+  a text search returns for these queries is labelled partial or exact. When the baseline is that high, no
+  method can show a gain.
+- **Seven queries have no spread.** In seven queries every document has the same label, so there is no order
+  to agree or disagree with, and tau-b is undefined. That left 23 queries, under the 25 the bar needs.
+
+The one measure with a visible gap is how often two documents with different labels are put the right way
+round: 85% for pairwise against 79% for pointwise and 71% for the search. That is encouraging, but it was not
+the measure the bar was built on, so it does not change the verdict.
+
+**Overall, G1 is not passed:** one book passed, one was inconclusive, and the plan asks for both. The next test
+should use a book where the search is not already close to perfect.
+
 ## What this does not tell us
 
 - It is one book of short product records, 30 queries. Position bias was large on long legal texts, and
@@ -139,10 +171,12 @@ the intervals excluded zero, it beat the search order, and it was stable.
 
 ## What happens next
 
-1. Repeat on a second book, ideally one with a named rater and complete top lists, since the bar asks for
-   two books.
-2. If it holds, put ranking calibration in the Calibration tab so people can run it without a console.
-3. Only then ask whether a cheaper method (comparison sort, then BlitzRank) is worth building, by measuring
-   how much of the cost they would save at our list sizes without losing agreement.
+1. Find or build a harder test: a book where the candidates are not the search's own top results, or the lists
+   are deeper, so there is room for an ordering to improve. Keep the bar written down first.
+2. Only if both books then pass, put ranking calibration in the Calibration tab so people can run it without
+   a console.
+3. Only then ask whether a cheaper method (comparison sort, then BlitzRank) is worth building. At 33 to 45
+   comparisons a query and 700 to 800 tokens per comparison, the exhaustive method is affordable at these
+   list sizes.
 
-The full numbers and caveats are in ADR 0005, Appendix B.
+The full numbers and caveats are in ADR 0005, Appendices B and C.

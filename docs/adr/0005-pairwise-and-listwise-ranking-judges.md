@@ -307,3 +307,41 @@ the search order on both, stability is above 0.7.
 
 **Consequence.** Per the plan, G1 passing allows P6 (ranking calibration in the UI). Before that, repeat on
 a second book, preferably one with a named rater and complete top lists, since the bar names two.
+
+---
+
+## Appendix C — G1, second book: WANDS (2026-10-30)
+
+Run against the bar in [pairwise_g1_bar_wands.md](../todo/pairwise_g1_bar_wands.md) (commit `c8fab9df6`, before any
+answer existed): book 11 (WANDS products, top 10 of a text search per query, whole lists labelled by the
+dataset's own 0/1/2 labels), calibration sample 6, 30 queries, 300 pairs, `jev` (`jev-1.14.0`), one run each.
+
+| Arm | tau-b | nDCG@10 | pairwise accuracy |
+| --- | --- | --- | --- |
+| Search order | 0.272 | 0.957 | 0.711 |
+| Pointwise Jev | 0.354 | 0.972 | 0.785 |
+| Pairwise Jev, round-robin | 0.421 | 0.979 | 0.847 |
+
+Pairwise minus pointwise, paired bootstrap over the queries (5,000 resamples, seed 1):
+
+| Metric | Queries with a value | Mean difference | 95% interval | Better / equal / worse |
+| --- | --- | --- | --- | --- |
+| tau-b | 23 of 30 | +0.067 | [-0.042, 0.164] | 9 / 10 / 4 |
+| nDCG@10 | 30 of 30 | +0.007 | [-0.003, 0.016] | 10 / 17 / 3 |
+
+Stability 0.935. Cost: 1,350 comparisons (45 a query), 1,029,564 tokens, 82 cycles, no ties.
+
+**Verdict by the bar: inconclusive, and not a pass.** Only 23 queries have a defined tau-b for both arms
+(the other 7 are graded all alike by the reference), below the 25 the bar requires. Independently, neither
+metric clears the bar: the nDCG difference is 0.007 against a margin of 0.02, and both intervals include 0.
+
+**Reading.** Pairwise is ahead on all three measures, in the same direction as Appendix B, but the gaps are
+small and the intervals include zero. Two things limit what this book can show: the search order already
+scores 0.957 nDCG@10, because most of a BM25 top 10 is labelled partial or exact, leaving almost nothing to
+gain; and a labelled set where a quarter of the queries have no grade spread cannot rank methods by tau-b.
+Pairwise accuracy (0.85 against 0.79) is the measure with the clearest gap, but it was not a deciding one.
+
+**G1 overall.** The plan needs two books. One passed (Appendix B), this one did not. G1 is therefore **not
+passed**, per the rule written in the WANDS bar, and nothing past P5 is built until it is understood. The
+likeliest next step is a harder book for this question: one where the search is not already near the ceiling
+(for example the candidates are not the search's own top 10, or the lists are deeper), not a rerun of this one.
