@@ -51,6 +51,49 @@ module LlmJudgeAdapters
       }
     end
 
+    COMPARISON_QUESTION_ID = 'preference'
+    FIRST = 'A'
+    SECOND = 'B'
+
+    # Which of two documents answers the query better, as one `choice` question.
+    # No scale: a comparison needs none. `swapped` says whether doc_b is shown as
+    # "A" -- the caller derives it (PairwiseSwap), because an envelope has no
+    # randomness to draw it from.
+    #
+    # @param doc_a [Hash] document fields
+    # @return [Hash] { path:, headers:, body: }
+    def comparison_envelope query, doc_a, doc_b, system_prompt:, swapped:
+      first, second = swapped ? [ doc_b, doc_a ] : [ doc_a, doc_b ]
+
+      {
+        path:    path,
+        headers: headers,
+        body:    {
+          model:     options[:llm_model].presence || DEFAULT_MODEL,
+          state:     comparison_state(query, first, second),
+          questions: { COMPARISON_QUESTION_ID => comparison_question(system_prompt) },
+        },
+      }
+    end
+
+    # @return [Hash] { winner: 'a' | 'b' | 'tie' | nil, probability:, confidence:, input_tokens:,
+    #   output_tokens: } with the swap undone, so 'a' is the document the caller called doc_a.
+    #   winner is nil when the answer cannot be read -- never a guess.
+    def apply_comparison response_body, swapped:
+      answer = response_body.to_h.dig('answers', COMPARISON_QUESTION_ID).to_h
+      chosen = answer['choice'].to_s
+      probability = numeric_value(answer.dig('probabilities', chosen))
+      usage = response_body.to_h['usage'].to_h
+
+      {
+        winner:        comparison_winner(chosen, probability, swapped),
+        probability:   probability,
+        confidence:    numeric_value(answer['confidence']),
+        input_tokens:  numeric_value(usage['input_tokens'])&.to_i,
+        output_tokens: numeric_value(usage['output_tokens'])&.to_i,
+      }
+    end
+
     # The prompt-preview path can build a request from a loose prompt pair with
     # no scale attached. Nothing sensible can be asked of Jev that way, so say so
     # instead of sending a question with no criteria.
@@ -96,6 +139,43 @@ module LlmJudgeAdapters
     end
 
     private
+
+    def comparison_state query, first, second
+      limit = MAX_FIELD_CHARS
+      loop do
+        state = {
+          query:     query.query_text,
+          documents: { FIRST => truncated_fields(first, limit), SECOND => truncated_fields(second, limit) },
+        }
+        state[:information_need] = query.information_need if query.information_need.present?
+        return state if state.to_json.length <= MAX_STATE_CHARS || limit.zero?
+
+        limit /= 2
+      end
+    end
+
+    def comparison_question system_prompt
+      instructions = [ system_prompt.presence, 'Which document is more relevant to the query?' ].compact.join("\n\n")
+
+      {
+        type:         'choice',
+        instructions: instructions,
+        criteria:     { FIRST  => 'Document A is more relevant to the query',
+                        SECOND => 'Document B is more relevant to the query' },
+      }
+    end
+
+    # A near-even answer is a tie when the judge says how near is near
+    # (jev_tie_band): Jev has no tie option of its own to pick.
+    def comparison_winner chosen, probability, swapped
+      return nil unless [ FIRST, SECOND ].include?(chosen)
+
+      band = numeric_value(options[:jev_tie_band])
+      return 'tie' if band && probability && probability < band
+
+      shown_first = FIRST == chosen
+      shown_first ^ swapped ? 'a' : 'b'
+    end
 
     def question system_prompt, scale
       raise NO_SCALE_MESSAGE if scale.empty?

@@ -142,6 +142,10 @@ class LlmProvider
   # the include-images switch disabled for a provider that does not, and the adapter
   # never attaches one, whatever the judge's own setting says.
   attribute :supports_images,       :boolean, default: true
+  # Whether the API can be asked "which of these two is more relevant?"
+  # (LlmJudgeAdapters#comparison_envelope; docs/adr/0005). Only a provider that can
+  # is offered as a ranking judge.
+  attribute :pairwise,              :boolean, default: false
 
   DEFINITIONS = [
     {
@@ -273,6 +277,7 @@ class LlmProvider
                              'and the shape of the answer are part of the request already.',
       help_html:             JEV_HELP_HTML,
       supports_images:       false,
+      pairwise:              true,
       option_fields:         {
         'jev_min_confidence' => {
           label: 'Minimum confidence',
@@ -353,6 +358,10 @@ class LlmProvider
   # ActiveModel attributes get no `?` reader of their own.
   def supports_images?
     supports_images
+  end
+
+  def pairwise?
+    pairwise
   end
 
   # A provider that is sent the scale as its criteria has nothing to judge against

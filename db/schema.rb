@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_10_24_233000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_30_120100) do
   create_table "active_storage_attachments", charset: "utf8mb4", collation: "utf8mb4_bin", force: :cascade do |t|
     t.bigint "blob_id", null: false
     t.datetime "created_at", null: false
@@ -375,6 +375,56 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_24_233000) do
     t.integer "user_id", null: false
     t.index ["created_at"], name: "index_mapper_wizard_states_on_created_at"
     t.index ["user_id"], name: "index_mapper_wizard_states_on_user_id"
+  end
+
+  create_table "order_results", charset: "utf8mb4", collation: "utf8mb4_bin", force: :cascade do |t|
+    t.boolean "complete", default: true, null: false
+    t.integer "calls_used", default: 0, null: false
+    t.integer "comparisons_used", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.integer "cycles"
+    t.json "ordered_pair_ids"
+    t.bigint "order_run_id", null: false
+    t.string "query_text", limit: 2048
+    t.integer "tokens_used", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["order_run_id"], name: "index_order_results_on_order_run_id"
+  end
+
+  create_table "order_runs", charset: "utf8mb4", collation: "utf8mb4_bin", force: :cascade do |t|
+    t.bigint "calibration_sample_id", null: false
+    t.integer "comparisons_count", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.integer "created_by_id"
+    t.text "error"
+    t.datetime "finished_at"
+    t.integer "judge_id", null: false
+    t.json "judge_snapshot"
+    t.datetime "started_at"
+    t.string "status", limit: 20, default: "queued", null: false
+    t.string "strategy", limit: 20, null: false
+    t.datetime "updated_at", null: false
+    t.index ["calibration_sample_id"], name: "index_order_runs_on_calibration_sample_id"
+    t.index ["judge_id"], name: "index_order_runs_on_judge_id"
+  end
+
+  create_table "preference_comparisons", charset: "utf8mb4", collation: "utf8mb4_bin", force: :cascade do |t|
+    t.float "confidence"
+    t.datetime "created_at", null: false
+    t.integer "input_tokens"
+    t.integer "judge_id", null: false
+    t.integer "output_tokens"
+    t.string "presented_first", limit: 1, null: false
+    t.float "probability"
+    t.bigint "query_doc_pair_a_id", null: false
+    t.bigint "query_doc_pair_b_id", null: false
+    t.string "query_text", limit: 2048
+    t.string "rubric_version", limit: 64, null: false
+    t.datetime "updated_at", null: false
+    t.string "winner", limit: 4, null: false
+    t.index ["judge_id", "rubric_version", "query_doc_pair_a_id", "query_doc_pair_b_id"], name: "index_preference_comparisons_on_judge_rubric_pair", unique: true
+    t.index ["query_doc_pair_a_id"], name: "index_preference_comparisons_on_query_doc_pair_a_id"
+    t.index ["query_doc_pair_b_id"], name: "index_preference_comparisons_on_query_doc_pair_b_id"
   end
 
   create_table "queries", id: :integer, charset: "utf8mb3", force: :cascade do |t|
@@ -966,6 +1016,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_10_24_233000) do
   add_foreign_key "judgements", "judgements", column: "escalated_from_judgement_id", on_delete: :nullify
   add_foreign_key "judgements", "query_doc_pairs"
   add_foreign_key "mapper_wizard_states", "users"
+  add_foreign_key "order_results", "order_runs", on_delete: :cascade
+  add_foreign_key "order_runs", "calibration_samples", on_delete: :cascade
+  add_foreign_key "order_runs", "users", column: "judge_id", on_delete: :cascade
+  add_foreign_key "preference_comparisons", "query_doc_pairs", column: "query_doc_pair_a_id", on_delete: :cascade
+  add_foreign_key "preference_comparisons", "query_doc_pairs", column: "query_doc_pair_b_id", on_delete: :cascade
+  add_foreign_key "preference_comparisons", "users", column: "judge_id", on_delete: :cascade
   add_foreign_key "queries", "cases", name: "queries_ibfk_1"
   add_foreign_key "query_doc_pairs", "books"
   add_foreign_key "rails_pulse_exception_occurrences", "rails_pulse_exception_groups", column: "exception_group_id"

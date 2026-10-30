@@ -54,6 +54,17 @@ module LlmJudgeAdapters
       judgement
     end
 
+    # The pairwise counterpart of request_envelope: which of two documents is
+    # more relevant to the query. Only a provider flagged `pairwise?` implements
+    # it; the others say so rather than guessing a request.
+    def comparison_envelope _query, _doc_a, _doc_b, system_prompt:, swapped:
+      raise NotImplementedError, "#{self.class} cannot compare documents"
+    end
+
+    def apply_comparison _response_body, swapped:
+      raise NotImplementedError, "#{self.class} cannot compare documents"
+    end
+
     def envelope user_prompt, system_prompt
       { path: path, headers: headers, body: body_for(user_prompt, system_prompt) }
     end

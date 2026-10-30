@@ -28,6 +28,11 @@ class CalibrationScoreImpact
 
   attr_reader :queries, :incomplete
 
+  # Also used by OrderAgreement, so every nDCG in Quepid's calibration is this one.
+  def self.dcg grades
+    grades.each_with_index.sum { |grade, index| grade / Math.log2(index + 2) }
+  end
+
   # @param rows [Array<Hash>] one per pair: :query_text, :position, :reference
   #   (grade) and :judge (grade, or nil when it gave none)
   def initialize rows
@@ -105,6 +110,6 @@ class CalibrationScoreImpact
   end
 
   def dcg grades
-    grades.each_with_index.sum { |grade, index| grade / Math.log2(index + 2) }
+    self.class.dcg(grades)
   end
 end
