@@ -1,0 +1,311 @@
+{
+  "description": "Classic Solr GET with edismax. Characterization: records what the browser (splainer-search) and the server (FetchService) do today, not what they should do. Where the two differ, both are recorded as they are.",
+  "known_differences": [
+    "The browser escapes the query text (escape_query defaults to true: 'star wars\\: a new hope'); the server sends it unescaped.",
+    "The server sends fl comma-separated (id,title,overview), the browser space-separated; the browser also sends echoParams=all and hl=false.",
+    "Next page (start) and 'Show only rated' (fq={!terms f=id}...) exist only in the browser.",
+    "Not exercised here, from reading FetchService: the server reads the doc id from the hard-coded 'id' field, not from field_spec."
+  ],
+  "search_engine": "solr",
+  "search_url": "http://solr.test/solr/tmdb/select",
+  "api_method": "GET",
+  "query_params": "q=#$query##&defType=edismax&qf=title overview",
+  "field_spec": "id:id, title:title, overview",
+  "number_of_rows": 7,
+  "query_text": "star wars: a new hope",
+  "response": {
+    "responseHeader": {
+      "status": 0,
+      "QTime": 3,
+      "params": {
+        "q": "star wars"
+      }
+    },
+    "response": {
+      "numFound": 42,
+      "start": 0,
+      "docs": [
+        {
+          "id": "11",
+          "title": "Star Wars",
+          "overview": "Princess Leia is captured and held hostage."
+        },
+        {
+          "id": "1891",
+          "title": "The Empire Strikes Back",
+          "overview": "The epic saga continues."
+        }
+      ]
+    },
+    "debug": {
+      "explain": {
+        "11": {
+          "match": true,
+          "value": 12.5,
+          "description": "max of:",
+          "details": [
+            {
+              "match": true,
+              "value": 12.5,
+              "description": "weight(title:star in 10) [SchemaSimilarity], result of:",
+              "details": []
+            }
+          ]
+        },
+        "1891": {
+          "match": true,
+          "value": 3.25,
+          "description": "max of:",
+          "details": [
+            {
+              "match": true,
+              "value": 3.25,
+              "description": "weight(overview:wars in 77) [SchemaSimilarity], result of:",
+              "details": []
+            }
+          ]
+        }
+      }
+    }
+  },
+  "expected": {
+    "args": {
+      "q": [
+        "#$query##"
+      ],
+      "defType": [
+        "edismax"
+      ],
+      "qf": [
+        "title overview"
+      ]
+    },
+    "browser": {
+      "requests": {
+        "search": {
+          "method": "GET",
+          "url": "http://solr.test/solr/tmdb/select",
+          "params": {
+            "q": [
+              "star wars\\: a new hope"
+            ],
+            "defType": [
+              "edismax"
+            ],
+            "qf": [
+              "title overview"
+            ],
+            "echoParams": [
+              "all"
+            ],
+            "fl": [
+              "id title overview"
+            ],
+            "wt": [
+              "json"
+            ],
+            "debug": [
+              "true"
+            ],
+            "debug.explain.structured": [
+              "true"
+            ],
+            "hl": [
+              "false"
+            ],
+            "rows": [
+              "7"
+            ]
+          },
+          "body": null
+        },
+        "next_page": {
+          "method": "GET",
+          "url": "http://solr.test/solr/tmdb/select",
+          "params": {
+            "q": [
+              "star wars\\: a new hope"
+            ],
+            "defType": [
+              "edismax"
+            ],
+            "qf": [
+              "title overview"
+            ],
+            "echoParams": [
+              "all"
+            ],
+            "rows": [
+              "7"
+            ],
+            "start": [
+              "7"
+            ],
+            "fl": [
+              "id title overview"
+            ],
+            "wt": [
+              "json"
+            ],
+            "debug": [
+              "true"
+            ],
+            "debug.explain.structured": [
+              "true"
+            ],
+            "hl": [
+              "false"
+            ]
+          },
+          "body": null
+        },
+        "rated_only": {
+          "method": "GET",
+          "url": "http://solr.test/solr/tmdb/select",
+          "params": {
+            "q": [
+              "star wars\\: a new hope"
+            ],
+            "defType": [
+              "edismax"
+            ],
+            "qf": [
+              "title overview"
+            ],
+            "echoParams": [
+              "all"
+            ],
+            "fq": [
+              "{!terms f=id}11,1891"
+            ],
+            "fl": [
+              "id title overview"
+            ],
+            "wt": [
+              "json"
+            ],
+            "debug": [
+              "true"
+            ],
+            "debug.explain.structured": [
+              "true"
+            ],
+            "hl": [
+              "false"
+            ],
+            "rows": [
+              "7"
+            ]
+          },
+          "body": null
+        }
+      },
+      "num_found": 42,
+      "docs": [
+        {
+          "id": "11",
+          "title": "Star Wars",
+          "subs": {
+            "overview": "Princess Leia is captured and held hostage."
+          },
+          "score": 12.5,
+          "hot_matches": {
+            "title:star": 12.5
+          }
+        },
+        {
+          "id": "1891",
+          "title": "The Empire Strikes Back",
+          "subs": {
+            "overview": "The epic saga continues."
+          },
+          "score": 3.25,
+          "hot_matches": {
+            "overview:wars": 3.25
+          }
+        }
+      ]
+    },
+    "server": {
+      "requests": [
+        {
+          "method": "GET",
+          "url": "http://solr.test/solr/tmdb/select",
+          "params": {
+            "debug": [
+              "true"
+            ],
+            "debug.explain.structured": [
+              "true"
+            ],
+            "defType": [
+              "edismax"
+            ],
+            "fl": [
+              "id,title,overview"
+            ],
+            "q": [
+              "star wars: a new hope"
+            ],
+            "qf": [
+              "title overview"
+            ],
+            "rows": [
+              "7"
+            ],
+            "wt": [
+              "json"
+            ]
+          },
+          "body": null
+        }
+      ],
+      "docs": [
+        {
+          "id": "11",
+          "explain": {
+            "match": true,
+            "value": 12.5,
+            "description": "max of:",
+            "details": [
+              {
+                "match": true,
+                "value": 12.5,
+                "description": "weight(title:star in 10) [SchemaSimilarity], result of:",
+                "details": []
+              }
+            ]
+          },
+          "position": 1,
+          "rated_only": null,
+          "fields": {
+            "title": "Star Wars",
+            "overview": "Princess Leia is captured and held hostage."
+          }
+        },
+        {
+          "id": "1891",
+          "explain": {
+            "match": true,
+            "value": 3.25,
+            "description": "max of:",
+            "details": [
+              {
+                "match": true,
+                "value": 3.25,
+                "description": "weight(overview:wars in 77) [SchemaSimilarity], result of:",
+                "details": []
+              }
+            ]
+          },
+          "position": 2,
+          "rated_only": null,
+          "fields": {
+            "title": "The Empire Strikes Back",
+            "overview": "The epic saga continues."
+          }
+        }
+      ]
+    }
+  }
+}
