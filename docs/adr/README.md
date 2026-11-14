@@ -13,3 +13,4 @@ that supersedes the old one rather than editing the old one into agreement with 
 |-----|--------|---------|
 | [0001](./0001-llm-judge-provider-architecture.md) | Proposed | LLM-as-Judge provider architecture: the adapter seam, TypeSafe Jev, and OpenAI Batch |
 | [0005](./0005-connections-for-external-services.md) | Proposed | Connections: one record for reaching and authenticating to an external service |
+| [0007](./0007-configurable-judgement-merging.md) | Proposed | Configurable judgement merging: a per-book rule for turning a pair's judgements into one rating |
