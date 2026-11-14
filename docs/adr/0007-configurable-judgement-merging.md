@@ -7,7 +7,7 @@
   `lib/` (a server-side runtime for custom rules, next to `lib/javascript_scorer.rb`)
 - **Builds on:** [ADR 0001](./0001-llm-judge-provider-architecture.md) (AI judges are `User` rows
   writing ordinary judgements), `docs/todo/judge_agreement_and_calibration.md` §2.7 and §3.8–3.10,
-  `docs/todo/escalating_judges.md` (S2 and §5.3 persist Jev's confidence, which §2.5 depends on)
+  `docs/todo/escalating_judges.md` (S2 and §5.3 persist a judge's confidence, which §2.5 depends on)
 - **Answers:** [o19s/quepid#1839](https://github.com/o19s/quepid/issues/1839) ("Human expert
   override should take absolute priority over AI judge ratings")
 
@@ -157,7 +157,7 @@ explain.
   `judge_kind` (`human` / `ai` / `anonymous`), `confidence`, `updated_at` and `escalated_from`
   (whether this judgement escalated another). `confidence` is passed **raw**: `null` when the judge
   reported none. Only the built-ins read `null` as 1 (§2.5), so a script can still tell a chat-LLM
-  judge from Jev answering 1.0, even though both are `ai`. The input also carries the book's `scale`. It does not carry
+  judge from a confident model answering 1.0, even though both are `ai`. The input also carries the book's `scale`. It does not carry
   explanations, doc fields or other pairs. A rule merges one pair's votes. It is not a relevance
   model.
 - **Output:** a number, or `null` for "no rating" (§2.4).
@@ -185,19 +185,28 @@ explain.
 
 ### 2.5 Confidence weighting
 
-Jev returns a `confidence` with every answer: how concentrated its probability distribution is,
-from 0 to 1. Other judges report none. A book can tell `mean`, `median` and `majority` to weight
-each judgement by its confidence.
+Some judges say how sure they are. Jev returns a `confidence` with every answer: how concentrated
+its probability distribution is, from 0 to 1. A custom trained model, such as a fine-tuned
+classifier or a cross-encoder served behind its own endpoint, typically returns a class probability
+for the grade it picked. A book can tell `mean`, `median` and `majority` to weight each judgement by
+its confidence.
 
-- **What counts as confidence.** Jev's reported `confidence`. Every other judgement (people,
-  anonymous imports, chat-LLM judges) has none and is weighted **1**. This is an explicit
-  assumption: a judge that reports no doubt is treated as having none.
-- **Storage.** This ADR adds no column. It depends on `escalating_judges.md` S2 (§5.3), which
-  persists Jev's confidence, and needs one thing from it: the stored confidence is **NULL when the
-  judge reported none**. The 1 is applied when the merge reads the value, never written. Writing 1
-  would make a person indistinguishable from Jev answering 1.0, and calibration needs that
-  difference. Existing Jev judgements can be backfilled from their explanation, which records
-  `confidence 0.35` in a fixed format.
+- **Confidence belongs to the judgement, not to Jev.** Whatever produces a judgement may attach a
+  confidence in [0, 1]:
+  - **An AI judge's adapter** sets it in `apply_response`, as the Jev adapter would. A new adapter
+    for a custom model does the same, and nothing in merging has to change.
+  - **An import** may carry a confidence column, for judgements made offline by a team's own model.
+  - Values outside [0, 1] are rejected at the trust boundary (adapter or import), not clamped.
+- **No confidence means weight 1.** People, anonymous imports without the column, and chat-LLM
+  judges report none, and are weighted **1**. This is an explicit assumption: a judge that reports
+  no doubt is treated as having none.
+- **Storage.** This ADR adds no column. It depends on `escalating_judges.md` S2 (§5.3), which plans
+  to persist Jev's confidence, and asks two things of it. First, the stored confidence is a
+  **generic field on the judgement** that any adapter or import can fill, not a Jev-only one.
+  Second, it is **NULL when the judge reported none**. The 1 is applied when the merge reads the
+  value, never written. Writing 1 would make a person indistinguishable from a model answering
+  1.0, and calibration needs that difference. Existing Jev judgements can be backfilled from their
+  explanation, which records `confidence 0.35` in a fixed format.
 - **The switch.** `weight_by_confidence` is a per-book flag on the rules that have a weighted form:
   - **`mean`:** Σ cᵢ·rᵢ / Σ cᵢ.
   - **`median`:** sort by rating and accumulate weights. The result is the first rating whose
@@ -208,20 +217,19 @@ each judgement by its confidence.
     wins. A tie falls back to the weighted median.
   - **Not available:** `quepid_classic`, `min` and `max`. They have no meaningful weighted form.
 - **Weights all 1 means nothing changes.** With every weight at 1, each weighted rule gives exactly
-  its unweighted result. Turning the switch on changes nothing on a book without Jev judgements.
-- **Zero total weight.** If every selected judgement has confidence 0, which is possible when Jev's
-  minimum-confidence floor is blank, the rule falls back to its unweighted form. Writing no rating
+  its unweighted result. Turning the switch on changes nothing on a book whose judges report no confidence.
+- **Zero total weight.** If every selected judgement has confidence 0, which is possible when no minimum-confidence floor is set, the rule falls back to its unweighted form. Writing no rating
   would leave a stale rating behind (§2.4).
-- **Resync.** A Jev re-run can return the same rating with a different confidence. That changes a
+- **Resync.** A re-run of a model judge can return the same rating with a different confidence. That changes a
   weighted result, so `Judgement#sync_case_ratings` must also fire when the confidence changes.
   Today it watches only `rating`, `unrateable`, `judge_later` and `query_doc_pair_id`.
 
 **Weighting is not precedence.** Confidence weighting decides how judges of one tier count against
-each other. It does not make people win. One person rating 3 and two Jev judges rating 0 at 0.6
+each other. It does not make people win. One person rating 3 and two model judges rating 0 at 0.6
 each gives a weighted mean of 3 / 2.2 ≈ 1.4. #1839 is still answered by `tiers: [human, ai]`. Inside
 a tier, weighting applies to whatever judgements that tier selected.
 
-Where it changes the result, with one person rating 3 (weight 1) and two Jev judges rating 0 at
+Where it changes the result, with one person rating 3 (weight 1) and two model judges rating 0 at
 0.3 and 0.4:
 
 | Rule | Unweighted | Weighted |
@@ -229,7 +237,7 @@ Where it changes the result, with one person rating 3 (weight 1) and two Jev jud
 | `mean` | 1.0 | 3 / 1.7 ≈ 1.76 → **2** |
 | `majority` | **0** (two votes against one) | 0 scores 0.7, 3 scores 1.0 → **3** |
 
-Two unsure Jev answers stop outvoting a confident judge, which is the point of the feature.
+Two unsure model answers stop outvoting a confident judge, which is the point of the feature.
 
 ## 3. Alternatives considered
 
@@ -248,15 +256,15 @@ Two unsure Jev answers stop outvoting a confident judge, which is the point of t
 - **Per-judge weights now.** Hand-set weights are guesses. Weights that are worth having come from
   measured reliability (Dawid & Skene and successors), which needs the overlap data the calibration
   work only starts to collect. A custom script can already weight by `judge_id` if a team insists.
-- **Pooling probability distributions instead of weighting by confidence.** Jev also returns its
-  full distribution over the scale. Every other judgement could be read as all of its probability
+- **Pooling probability distributions instead of weighting by confidence.** Jev returns its full
+  distribution over the scale, and a trained classifier usually can too. Every other judgement could be read as all of its probability
   on its own rating, the distributions summed, and the result read as the most likely grade or the
   expected grade. That is more principled than a single "concentration" number, but it needs the
   distribution stored as well, and it changes what a rating means. Scalar weighting comes first.
-  Pooling is in §5, and S2's storage should keep `probabilities` next to `confidence` while it is
-  there.
+  Pooling is in §5, and S2's storage should keep the distribution next to `confidence` while
+  it is there.
 - **Using confidence as precedence** (the most confident judge wins). This is too brittle: Jev's
-  confidence moves between identical calls, and every judge other than Jev would sit at 1. People
+  confidence moves between identical calls, and every judge that reports nothing would sit at 1. People
   who must win get a tier (§2.2).
 - **Rule per case.** Rejected in §2.1.
 
@@ -265,16 +273,22 @@ Two unsure Jev answers stop outvoting a confident judge, which is the point of t
 - #1839 is solved without deleting or locking data, and the "only a Sith deals in absolutes"
   objection is answered: precedence is a book's choice, not Quepid's.
 - **Confidence weighting has a narrow reach.** It changes only pairs with two or more rateable
-  judgements that mix Jev with other judges. Escalated pairs and single-judge pairs are unaffected.
+  judgements that mix confidence-reporting judges with others. Escalated pairs and single-judge pairs are unaffected.
 - **The floor and the weights overlap.** Jev answers below `jev_min_confidence` are marked
-  unrateable and lose their rating, so weighting only sees answers at or above the floor. A book
+  unrateable and lose their rating, so weighting only sees answers at or above the floor. A custom
+  model's adapter that adds its own floor behaves the same way. A book
   that weights by confidence should usually leave the floor blank or low, and keep it only to
   trigger escalation.
+- **Confidences from different sources are not on one scale.** Jev's number measures how
+  concentrated its distribution is. A classifier's is a softmax probability, often overconfident
+  unless the model was calibrated (for example with temperature scaling). Weighting treats 0.7 from
+  one as equal to 0.7 from the other. Calibrating each judge against people (calibration doc) is
+  what makes them comparable. Until then, a weighted rule mixing two model sources is a heuristic.
 - **Weighted ratings are noisier.** Jev's confidence is uncalibrated and varies between identical
   calls (0.02 and 0.67 on the same kind of pair, `escalating_judges.md` §5.6). A re-run can move
   weighted ratings without any rating changing. Score histories on weighted books will wobble more.
 - **Chat-LLM judges count as fully confident.** Under the weight-1 assumption, a chat-LLM judge
-  weighs as much as a person and more than any Jev answer, although chat LLMs are known to be
+  weighs as much as a person and more than any model that reports doubt, although chat LLMs are known to be
   overconfident. This is deliberate and simple. Per-judge default weights are deferred (§5).
 - The rule a book uses becomes visible and named, instead of being an undocumented property of
   `RatingsManager`. The Quepid manual page on averaging describes the default rule instead of the
@@ -293,7 +307,10 @@ Two unsure Jev answers stop outvoting a confident judge, which is the point of t
 
 - **Reliability-weighted merging** (Dawid & Skene, GLAD, MACE): a later built-in, once the
   calibration sample provides judge overlap (calibration doc D6–D7).
-- **Distribution pooling** (§3): needs Jev's `probabilities` persisted alongside its confidence.
+- **Distribution pooling** (§3): needs each model's distribution over the scale persisted alongside
+  its confidence.
+- **A generic confidence floor:** `jev_min_confidence` is Jev's own option. A shared floor that any
+  confidence-reporting judge honours belongs with the escalation work.
 - **Per-judge default confidence:** for example, trusting a chat-LLM judge at 0.7 instead of 1. A
   custom script can already do this by `judge_id`.
 - **Juries larger than three:** `SelectionStrategy` stops offering a pair at three judgements
