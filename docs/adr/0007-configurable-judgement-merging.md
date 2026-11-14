@@ -30,9 +30,10 @@ judgements. They read a single `Rating` per query and doc. Two flows connect the
 - **Case → book.** Rating a doc in a case (`api/v1/queries/ratings`, `api/v1/bulk_ratings`, the
   ratings importer) calls `JudgementSync.from_ratings`. `JudgementFromRatingJob` then writes that
   rating as **the current user's judgement** on the matching pair of the case's book. That judgement
-  triggers the book → case flow, so the case's `Rating` is overwritten with the merged value. A
-  person who picks a grade in a case can see it turn into an average a moment later. That is the
-  behaviour #1839 reports.
+  triggers the book → case flow, so the case's `Rating` is overwritten with the merged value. The
+  case UI (`app/javascript/utils/ratings_store.js`) keeps showing the grade the person picked, and
+  only progress notifications are broadcast, so the average appears on the next page load. That is
+  the behaviour #1839 reports, and the delay makes it look like the person's grade was lost.
 
 `RatingsManager#calculate_rating_from_judgements` is the only place in the codebase that merges
 judgements. It is hard-coded:
