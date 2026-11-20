@@ -106,6 +106,12 @@ and the same for every book**.
 input contract. Quepid ships named built-in rules, and a book can instead supply its own
 JavaScript, the way scorers do. The current rule remains the default.
 
+**Built in two phases.** The first phase is the pipeline with built-in rules and precedence
+tiers (§2.1, §2.2, §2.4), which answers #1839. The second phase adds custom scripts (§2.3) and
+confidence weighting (§2.5). Both are decided here so the first phase leaves room for them: a
+script is one more rule behind the same input contract, and weighting is a book flag on the
+built-ins.
+
 ### 2.1 Where the rule lives
 
 On the **book**. Judgements belong to a book, `RatingsManager` is constructed per book, and every

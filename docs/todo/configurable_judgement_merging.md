@@ -4,32 +4,28 @@ Plan for [ADR 0007](../adr/0007-configurable-judgement-merging.md). Target: upst
 o19s/quepid, in PR-sized batches. Each batch is additive and leaves every existing book on the
 same ratings, except batch 3, which changes ratings on scales with gaps and says so.
 
+## Scope
+
+**Now: basic configurable merging (batches 1–3).** Each book picks a named built-in rule and,
+optionally, precedence tiers by judge kind. This solves #1839.
+
+**Later: weighted and scripted merging (batches 4–5).** The design is kept below so it can be
+picked up unchanged. Batch 2 leaves room for both: weighting is a book flag on the rules batch 2
+adds, and a script is one more rule behind the same input contract.
+
 ## 0. Before any code
 
-- **Build end to end without waiting for the ADR to be accepted.** Implement all batches on the
-  fork, one commit (or PR-sized branch) per batch, so each can still go upstream separately. Open
-  the ADR upstream in parallel and link it from #1839. If review changes the design (column names,
-  built-in names, the script runtime), rework the affected batch before it goes upstream.
-- **Synced.** This branch now includes o19s/quepid#1900 (ADR 0008, merged upstream
-  2026-11-19), so `judgements.confidence` exists here.
-- **Update ADR 0007 to point at ADR 0008.** The confidence storage that ADR 0007 depends on has
-  shipped. Edit these places:
-  - The "Builds on" header and §2.5 "Storage": replace "depends on escalating_judges.md S2" with
-    ADR 0008, and drop the backfill paragraph. The backfill has run: migrations
-    `20261114120000` and `20261114120100`.
-  - §2.5 bullets on adapters and imports: they describe what ADR 0008 has built. Reword them as
-    facts, and cite ADR 0008 §2.2 and §2.5. Adapters always assign confidence, `Base` assigns
-    `nil`, and the importer, the API and the book export carry it.
-  - Add one line saying that unrateable judgements keep their confidence (ADR 0008 §2.3) and that
-    merging still ignores them, because select starts from `rateable`.
+- **Build end to end without waiting for the ADR to be accepted.** One commit (or PR-sized
+  branch) per batch, so each can still go upstream separately. Open the ADR upstream in parallel
+  and link it from #1839. If review changes the design (column or rule names), rework the
+  affected batch before it goes upstream.
+- **Done:** this branch includes o19s/quepid#1900 (ADR 0008, `judgements.confidence`), and
+  ADR 0007 points at ADR 0008.
 - **Fix the cross-link.** ADR 0008 links ADR 0007 as frutik/quepid#15. When ADR 0007 is opened
   upstream, change that link to the upstream PR in the same PR.
-- **Code style.** Follow `docs/ai_coding_styleguide.md` (upstream, 2026-11). The batch notes
-  below say where each rule applies. Comments that only explain the change to a reviewer start
-  with `# PR:` and are removed before merge.
-- **Check what ADR 0008 already does.** `Judgement#reset_confidence_tracking` clears confidence
-  when a rating changes without a new confidence, and `BookCombiner` writes `nil` for averaged
-  judgements. Both match ADR 0007's "NULL means none reported", so no change is needed.
+- **Code style.** Follow `docs/ai_coding_styleguide.md`. The batch notes below say where each
+  rule applies. Comments that only explain the change to a reviewer start with `# PR:` and are
+  removed before merge.
 
 ## Batch 1: extract the rule (refactor, no behaviour change)
 
@@ -105,7 +101,11 @@ editing `RatingsManager`.
   ratings and then calls `.round`, so on a gapped scale it can store an off-scale *judgement*.
   The same `JudgeScale#nearest` would fix it, in a separate PR.
 
-## Batch 4: confidence weighting
+## Later
+
+Not built in this round. Kept as the design for the next one.
+
+### Batch 4 (later): confidence weighting
 
 - **Migration:** `books.weight_by_confidence` boolean, `null: false`, `default: false`.
 - **Validation:** only allowed with `mean`, `median`, `majority`. The form hides or disables it
@@ -132,7 +132,7 @@ editing `RatingsManager`.
     unweighted one.
   - An unrateable judgement that keeps its confidence is not weighted in.
 
-## Batch 5: custom JavaScript rules
+### Batch 5 (later): custom JavaScript rules
 
 - **Migration:** `books.judgement_merge_code` text. `judgement_merge_rule = 'custom'` selects it.
   Validate that the code is present when the rule is `custom`.
@@ -155,7 +155,7 @@ editing `RatingsManager`.
   rating, and one context is reused across pairs (assert `MiniRacer::Context.new` is called once
   per run).
 
-## Batch 6 (optional): case UI after a merge
+### Batch 6 (optional, unscheduled): case UI after a merge
 
 ADR §1.1 explains why #1839 looked like lost data: `ratings_store.js` keeps the grade the person
 picked, and the merged value only shows after a reload. Once tiers exist, the human grade *is* the
@@ -172,10 +172,10 @@ disagreement flags.
 ## Order and dependencies
 
 ```
-1 ── 2 ─┬─ 3
-        ├─ 4
-        └─ 5          (ADR review upstream runs alongside)
+now:    1 ── 2 ── 3            (ADR review upstream runs alongside)
+later:       2 ─┬─ 4  weighted
+                └─ 5  scripted
 ```
 
-Build order is 1, 2, 3, 4, 5. Batches 3, 4 and 5 depend only on batch 2, so upstream can take
-them in any order.
+Batch 3 depends only on batch 2. Batches 4 and 5 each need only batch 2 and are independent of
+each other.
