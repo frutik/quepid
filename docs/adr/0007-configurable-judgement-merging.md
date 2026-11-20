@@ -7,7 +7,8 @@
   `lib/` (a server-side runtime for custom rules, next to `lib/javascript_scorer.rb`)
 - **Builds on:** [ADR 0001](./0001-llm-judge-provider-architecture.md) (AI judges are `User` rows
   writing ordinary judgements), `docs/todo/judge_agreement_and_calibration.md` §2.7 and §3.8–3.10,
-  `docs/todo/escalating_judges.md` (S2 and §5.3 persist a judge's confidence, which §2.5 depends on)
+  [ADR 0008](./0008-judgement-confidence.md) (stores a nullable `confidence` on every judgement,
+  which §2.5 reads)
 - **Answers:** [o19s/quepid#1839](https://github.com/o19s/quepid/issues/1839) ("Human expert
   override should take absolute priority over AI judge ratings")
 
@@ -191,22 +192,23 @@ classifier or a cross-encoder served behind its own endpoint, typically returns 
 for the grade it picked. A book can tell `mean`, `median` and `majority` to weight each judgement by
 its confidence.
 
-- **Confidence belongs to the judgement, not to Jev.** Whatever produces a judgement may attach a
-  confidence in [0, 1]:
-  - **An AI judge's adapter** sets it in `apply_response`, as the Jev adapter would. A new adapter
-    for a custom model does the same, and nothing in merging has to change.
-  - **An import** may carry a confidence column, for judgements made offline by a team's own model.
-  - Values outside [0, 1] are rejected at the trust boundary (adapter or import), not clamped.
+- **Confidence belongs to the judgement, not to Jev.** ADR 0008 stores it on every judgement, in
+  [0, 1], and any source may fill it (ADR 0008 §2.2):
+  - **An AI judge's adapter** always assigns it in `apply_response`: Jev its reported value, chat
+    models `nil`. A new adapter for a custom model does the same, and nothing in merging has to
+    change.
+  - **The API and book imports** accept it, for judgements made offline by a team's own model, and
+    the book export carries it (ADR 0008 §2.5).
+  - Values outside [0, 1] are rejected at the trust boundary, not clamped (ADR 0008 §2.4).
 - **No confidence means weight 1.** People, anonymous imports without the column, and chat-LLM
   judges report none, and are weighted **1**. This is an explicit assumption: a judge that reports
   no doubt is treated as having none.
-- **Storage.** This ADR adds no column. It depends on `escalating_judges.md` S2 (§5.3), which plans
-  to persist Jev's confidence, and asks two things of it. First, the stored confidence is a
-  **generic field on the judgement** that any adapter or import can fill, not a Jev-only one.
-  Second, it is **NULL when the judge reported none**. The 1 is applied when the merge reads the
-  value, never written. Writing 1 would make a person indistinguishable from a model answering
-  1.0, and calibration needs that difference. Existing Jev judgements can be backfilled from their
-  explanation, which records `confidence 0.35` in a fixed format.
+- **Storage.** This ADR adds no column. It reads `judgements.confidence` from ADR 0008, which is
+  **NULL when the judge reported none**. The 1 is applied when the merge reads the value, never
+  written. Writing 1 would make a person indistinguishable from a model answering 1.0, and
+  calibration needs that difference.
+- **Unrateable judgements keep their confidence** (ADR 0008 §2.3), for the escalation threshold.
+  Merging never sees them: select starts from the pair's rateable judgements.
 - **The switch.** `weight_by_confidence` is a per-book flag on the rules that have a weighted form:
   - **`mean`:** Σ cᵢ·rᵢ / Σ cᵢ.
   - **`median`:** sort by rating and accumulate weights. The result is the first rating whose
@@ -221,8 +223,10 @@ its confidence.
 - **Zero total weight.** If every selected judgement has confidence 0, which is possible when no minimum-confidence floor is set, the rule falls back to its unweighted form. Writing no rating
   would leave a stale rating behind (§2.4).
 - **Resync.** A re-run of a model judge can return the same rating with a different confidence. That changes a
-  weighted result, so `Judgement#sync_case_ratings` must also fire when the confidence changes.
-  Today it watches only `rating`, `unrateable`, `judge_later` and `query_doc_pair_id`.
+  weighted result, so `Judgement#sync_case_ratings` must also fire when the confidence changes,
+  on books with `weight_by_confidence` set. Today it watches only `rating`, `unrateable`,
+  `judge_later` and `query_doc_pair_id`. ADR 0008 §4 left `confidence` out on purpose, so that Jev
+  re-runs don't resync cases that no rule reads, and the same reason keeps unweighted books out.
 
 **Weighting is not precedence.** Confidence weighting decides how judges of one tier count against
 each other. It does not make people win. One person rating 3 and two model judges rating 0 at 0.6
@@ -261,8 +265,8 @@ Two unsure model answers stop outvoting a confident judge, which is the point of
   on its own rating, the distributions summed, and the result read as the most likely grade or the
   expected grade. That is more principled than a single "concentration" number, but it needs the
   distribution stored as well, and it changes what a rating means. Scalar weighting comes first.
-  Pooling is in §5, and S2's storage should keep the distribution next to `confidence` while
-  it is there.
+  Pooling is in §5. ADR 0008 §3 deferred storing the distribution until a feature reads it, and
+  the explanation keeps it in the meantime.
 - **Using confidence as precedence** (the most confident judge wins). This is too brittle: Jev's
   confidence moves between identical calls, and every judge that reports nothing would sit at 1. People
   who must win get a tier (§2.2).
