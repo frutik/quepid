@@ -37,10 +37,12 @@ class LlmService
   rescue RuntimeError => e
     judgement.explanation = "BOOM: Runtime Error: #{e.message}"
     judgement.unrateable = true
+    judgement.confidence = nil
   rescue Faraday::Error => e
     # This will catch all Faraday errors including TimeoutError, ConnectionFailed, etc.
     judgement.explanation = "BOOM: API request failed: #{e.message}"
     judgement.unrateable = true
+    judgement.confidence = nil
   end
 
   # @param scale [JudgeScale] the rating scale the judge is held to. How it
@@ -78,5 +80,9 @@ class LlmService
 
     body = response.body
     body.is_a?(String) ? JSON.parse(body) : body
+  rescue JSON::ParserError => e
+    # A 200 that is not JSON (an HTML error page from a proxy, a truncated body)
+    # is an API failure like any other, so callers' RuntimeError handling applies.
+    raise "LLM API Error: response was not valid JSON (#{e.message})"
   end
 end
