@@ -6,9 +6,10 @@ same ratings, except batch 3, which changes ratings on scales with gaps and says
 
 ## 0. Before any code
 
-- **Agree the ADR upstream.** Open the ADR as its own PR and link it from #1839. Batches 2 and up
-  need the maintainers to accept the design: book columns, built-in names and script runtime.
-  Batch 1 is a refactor and can go first.
+- **Build end to end without waiting for the ADR to be accepted.** Implement all batches on the
+  fork, one commit (or PR-sized branch) per batch, so each can still go upstream separately. Open
+  the ADR upstream in parallel and link it from #1839. If review changes the design (column names,
+  built-in names, the script runtime), rework the affected batch before it goes upstream.
 - **Synced.** This branch now includes o19s/quepid#1900 (ADR 0008, merged upstream
   2026-11-19), so `judgements.confidence` exists here.
 - **Update ADR 0007 to point at ADR 0008.** The confidence storage that ADR 0007 depends on has
@@ -171,10 +172,10 @@ disagreement flags.
 ## Order and dependencies
 
 ```
-0 (ADR PR) ─┬─ 1 ── 2 ─┬─ 3
-            │          ├─ 4
-            │          └─ 5
+1 ── 2 ─┬─ 3
+        ├─ 4
+        └─ 5          (ADR review upstream runs alongside)
 ```
 
-Batch 1 can merge before the ADR is accepted. Batches 3, 4 and 5 depend only on batch 2 and can
-land in any order.
+Build order is 1, 2, 3, 4, 5. Batches 3, 4 and 5 depend only on batch 2, so upstream can take
+them in any order.
